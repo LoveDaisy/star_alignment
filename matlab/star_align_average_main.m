@@ -3,8 +3,8 @@
 
 clear; clc; close all;
 
-img_path = '../python/';
-out_path = '../python';
+img_path = '../images/';
+out_path = '../images/';
 regexp_pattern = '\<IMG_(\d{4})_0\.TIF$';
 
 [files, digits, img_info] = get_image_files(img_path, regexp_pattern);

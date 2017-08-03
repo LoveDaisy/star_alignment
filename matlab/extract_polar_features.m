@@ -1,7 +1,8 @@
 function [rho, theta, vol_res] = extract_polar_features(sph, vol, K)
 % This function extract the polar features of a point
 m = K*2;
-vec = [cos(sph(:,1)) .* cos(sph(:,2)), cos(sph(:,1)) .* sin(sph(:,2)), sin(sph(:,1))];
+% vec = [cos(sph(:,1)) .* cos(sph(:,2)), cos(sph(:,1)) .* sin(sph(:,2)), sin(sph(:,1))];
+vec = [cos(sph(:,2)) .* cos(sph(:,1)), cos(sph(:,2)) .* sin(sph(:,1)), sin(sph(:,2))];
 
 [dist_mat, ind] = pdist2(vec, vec, 'cosine', 'smallest', m);
 dist_mat = acos(1 - dist_mat);

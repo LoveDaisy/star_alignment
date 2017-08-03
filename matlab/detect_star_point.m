@@ -39,7 +39,7 @@ weighted_centroid = cat(1, stats.WeightedCentroid);
 area = cat(1, stats.Area);
 eccentricity = cat(1, stats.Eccentricity);
 intensity = cat(1, stats.MeanIntensity);
-ind = area > 5 & area < 100 & eccentricity < .9;
+ind = area > 5 & area < 200 & eccentricity < .9;
 ind = ind & area > prctile(area, 20) & intensity > prctile(intensity, 20);
 
 location = cell(sum(ind), 1);
@@ -75,7 +75,7 @@ end
 % =============================================================================
 function [bw, img_rec] = wavelet_method(img, mask)
 method = 'db8';
-[C, S] = wavedec2(img, 7, method);
+[C, S] = wavedec2(img, 6, method);
 C(1:S(1,1)*S(1,2)) = 0;
 C(end-sum(S(end-1,1).*S(end-1,2)*3)+1:end) = 0;
 img_rec = waverec2(C, S, method) .* mask;
