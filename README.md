@@ -12,7 +12,7 @@ Check `star_align_average_main.m` as the main script.
 ## python code
 
 Check `imgprc.py` and run it. Need OpenCV, NumPy, SciPy, pywt, piexif, matplotlib (optional), tiffile be installed. Matplotlib
-is used for debug, and there is no affect if you remove relevent lines.
+is used for debug, and it makes no difference on result if you remove / comment relevant lines.
 
 
 # 星点对齐叠加
