@@ -11,7 +11,7 @@ Check `star_align_average_main.m` as the main script.
 
 ## python code
 
-Check `imgprc.py` and run it. Need OpenCV, NumPy, SciPy, pywt, piexif, matplotlib (optional), tifffile be installed. Matplotlib
+Check `imgprc.py` and run it. Need OpenCV, NumPy, SciPy, pywt, Tyf, matplotlib (optional), tifffile be installed. Matplotlib
 is used for debug, and it makes no difference on result if you remove / comment relevant lines.
 
 
@@ -26,5 +26,5 @@ is used for debug, and it makes no difference on result if you remove / comment 
 
 ## python 代码
 
-所有算法都在 `imgprc.py` 文件中，依赖的第三方包：OpenCV, NumPy, SciPy, pywt, piexif, matplatlib（可选）, tifffile。其中 matplotlib
+所有算法都在 `imgprc.py` 文件中，依赖的第三方包：OpenCV, NumPy, SciPy, pywt, Tyf, matplatlib（可选）, tifffile。其中 matplotlib
 主要用于调试输出中间图，去掉相关代码对实际功能没有影响。
