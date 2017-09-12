@@ -23,6 +23,15 @@ issues in sources of Tyf packet (I just did that).
 
 Any suggestion about read and write metadata (exif information) of tiff file is welcome.
 
+## Acknowlagements
+
+* PyWavelets: [https://pywavelets.readthedocs.io/en/latest](https://pywavelets.readthedocs.io/en/latest)
+* SciPy & NumPy: [https://www.scipy.org/index.html](https://www.scipy.org/index.html)
+* OpenCV: [http://opencv.org](http://opencv.org)
+* tifffile: [https://github.com/blink1073/tifffile](https://github.com/blink1073/tifffile)
+* Tyf: [https://github.com/Moustikitos/tyf](https://github.com/Moustikitos/tyf)
+
+
 
 # 星点对齐叠加
 对多张星空图片进行星点对齐并叠加，适用于深空、星野图片，适用于长焦、广角拍摄的图片，改正了常见叠加方法无法对齐广角星空的缺点。
@@ -46,3 +55,11 @@ Any suggestion about read and write metadata (exif information) of tiff file is 
 的行都注释掉，应该就可以正确运行了。或者，也可以手动修改 Tyf 的源文件（我就是这么做的）。
 
 如果有人知道其他能够读写 tiff 文件的 metadata 的包，欢迎进行讨论。
+
+## 感谢
+
+* PyWavelets: [https://pywavelets.readthedocs.io/en/latest](https://pywavelets.readthedocs.io/en/latest)
+* SciPy & NumPy: [https://www.scipy.org/index.html](https://www.scipy.org/index.html)
+* OpenCV: [http://opencv.org](http://opencv.org)
+* tifffile: [https://github.com/blink1073/tifffile](https://github.com/blink1073/tifffile)
+* Tyf: [https://github.com/Moustikitos/tyf](https://github.com/Moustikitos/tyf)

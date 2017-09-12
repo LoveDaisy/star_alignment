@@ -1,4 +1,3 @@
-# BSD License
 Copyright (c) 2017-2025, Jiajie Zhang
 All rights reserved.
 
@@ -25,7 +24,6 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-# MIT License
 Copyright (c) 2017-2025 Jiajie Zhang
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -45,12 +43,4 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
-# Acknowlagements
-
-* PyWavelets: [https://pywavelets.readthedocs.io/en/latest](https://pywavelets.readthedocs.io/en/latest)
-* SciPy & NumPy: [https://www.scipy.org/index.html](https://www.scipy.org/index.html)
-* OpenCV: [http://opencv.org](http://opencv.org)
-* tifffile: [https://github.com/blink1073/tifffile](https://github.com/blink1073/tifffile)
-* Tyf: [https://github.com/Moustikitos/tyf](https://github.com/Moustikitos/tyf)
 
