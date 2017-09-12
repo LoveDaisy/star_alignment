@@ -16,7 +16,6 @@ import scipy.spatial.distance as spd
 import pywt
 import Tyf
 import tifffile as tiff
-from PyQt5.QtGui import (QImage, QPixmap)
 
 
 class Image(object):
@@ -25,7 +24,6 @@ class Image(object):
             full path
             original image, may be uint16 type
             fullsize gray image
-            qpix
             exif info, Tyf.TiffFile type
             image features
     """
@@ -44,12 +42,10 @@ class Image(object):
             self.original_image, self.exif_info = ImageProcessing.read_tif_image(full_path)
             gray_img = cv2.cvtColor(self.original_image, cv2.COLOR_RGB2GRAY)
             self.fullsize_gray_image = ImageProcessing.convert_to_float(gray_img)
-            # self.qpix = ImageProcessing.convert_to_qpix(self.original_image)
         else:
             self.original_image = None
             self.fullsize_gray_image = None
             self.exif_info = None
-            self.qpix = None
 
         self.reset_all()
 
@@ -93,8 +89,6 @@ class DataModel(object):
 
         self.final_sky_img = None       # Of type double
         self.final_ground_img = None    # Of type double
-        self.final_sky_qpix = None
-        self.final_ground_qpix = None
 
         # On concurrent
         self.is_adding_image = False
@@ -157,13 +151,11 @@ class DataModel(object):
     def reset_final_sky(self):
         self.logger.debug("reset_final_sky()")
         self.final_sky_img = None
-        self.final_sky_qpix = None
         self.final_sky_num = 0
 
     def reset_final_ground(self):
         self.logger.debug("reset_final_ground()")
         self.final_ground_img = None
-        self.final_ground_qpix = None
         self.final_ground_num = 0
 
     def reset_result(self):
@@ -433,24 +425,6 @@ class ImageProcessing(object):
         tf = cv2.findHomography(feature1["pts"][pair_idx[:, 0]], feature2["pts"][pair_idx[:, 1]],
                                 method=cv2.RANSAC, ransacReprojThreshold=5)
         return tf, pair_idx
-
-    @staticmethod
-    def convert_to_qpix(np_image):
-        h, w, _ = np_image.shape
-        if np_image.dtype == np.uint16 or np_image.dtype == np.uint8:
-            img = (np_image.astype("float32") / np.iinfo(np_image.dtype).max * 255).astype("uint8")
-        elif np_image.dtype == np.float32:
-            img = (np_image * 255).astype("uint8")
-        else:
-            img = None
-
-        if img is None:
-            return None
-        else:
-            qimg = QImage(img.data, w, h, QImage.Format_RGB888)
-            logging.debug("qpix")
-            qpix = QPixmap.fromImage(qimg)
-            return qpix
 
     @staticmethod
     def convert_to_float(np_image):
