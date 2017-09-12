@@ -1,3 +1,4 @@
+# BSD License
 Copyright (c) 2017-2025, Jiajie Zhang
 All rights reserved.
 
@@ -24,6 +25,7 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+# MIT License
 Copyright (c) 2017-2025 Jiajie Zhang
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
