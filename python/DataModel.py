@@ -8,11 +8,11 @@ Email: zhangjiajie043@gmail.com
 
 import logging
 import os
-import math
+from math import log
 import cv2
 import numpy as np
 import numpy.linalg as la
-import scipy.spatial.distance as spd
+from scipy.spatial import distance as spd
 import pywt
 import Tyf
 import tifffile as tiff
@@ -75,9 +75,13 @@ class Image(object):
 
 
 class DataModel(object):
+    # Align options
     AUTO_MASK = 1
     ALIGN_STARS = 2
     ALIGN_GROUND = 3
+
+    # Display options
+    ORIGINAL_IMAGE = 1
 
     def __init__(self):
         super(DataModel, self).__init__()
@@ -90,7 +94,7 @@ class DataModel(object):
         self.final_sky_img = None       # Of type double
         self.final_ground_img = None    # Of type double
 
-        # On concurrent
+        # For concurrency issue
         self.is_adding_image = False
 
         # Other GUI options
@@ -199,7 +203,7 @@ class ImageProcessing(object):
         img_shape = img_blr.shape
 
         need_resize = abs(resize_factor - 1) > 0.001
-        level = int(6 - math.log(1 / resize_factor, 2))
+        level = int(6 - log(1 / resize_factor, 2))
 
         if need_resize:
             img_blr_resize = cv2.resize(img_blr, None, fx=resize_factor, fy=resize_factor)
@@ -246,6 +250,11 @@ class ImageProcessing(object):
         else:
             mask = np.logical_and(tmp_mask > 127, mask > 0)
         logging.debug("calc mask done")
+
+        mask_rate = np.sum(mask) * 100.0 / np.prod(mask.shape)
+        logging.debug("mask rate: %.2f", mask_rate)
+        if mask_rate < 50:
+            mask = np.ones(tmp_mask.shape, dtype="bool")
         
         while True:
             try:
@@ -255,7 +264,7 @@ class ImageProcessing(object):
                 # bw = ((img_rec > np.percentile(img_rec, 99.5))).astype(np.uint8) * 255
                 bw = cv2.morphologyEx(bw, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
 
-                contours, _ = cv2.findContours(np.copy(bw), cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
+                _, contours, _ = cv2.findContours(np.copy(bw), cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
                 contours = filter(lambda x: len(x) > 5, contours)
                 logging.debug("%d star points detected", len(contours))
 
@@ -263,7 +272,7 @@ class ImageProcessing(object):
                     break
                 else:
                     raise ValueError, "No enough points"
-            except ValueError:
+            except ValueError as e:
                 if resize_factor >= 1:
                     raise ValueError, "Cannot detect enough star points"
                 else:
@@ -458,8 +467,8 @@ if __name__ == "__main__":
     logging.basicConfig(format=logging_format, level=logging_level)
 
     data_model = DataModel()
-    img_tmpl = u"./IMG_{:04d}_0.tif"
-    for p in [img_tmpl.format(i) for i in (3736, 3739)]:
+    img_tmpl = u"/Volumes/ZJJ-4TB/Photos/17.08.21 Eclipse Trip/6DII/IMG_{:04d}_0.tif"
+    for p in [img_tmpl.format(i) for i in (79, 80, 81, 82)]:
         logging.debug("image: %s", p)
         data_model.add_image(p)
     
