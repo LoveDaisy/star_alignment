@@ -16,6 +16,7 @@ from scipy.spatial import distance as spd
 import pywt
 import Tyf
 import tifffile as tiff
+import rawpy
 
 
 class Image(object):
@@ -40,6 +41,10 @@ class Image(object):
         _, ext = os.path.splitext(full_path)
         if ext.lower() in (".tiff", ".tif") and os.path.isfile(full_path):
             self.original_image, self.exif_info = ImageProcessing.read_tif_image(full_path)
+            gray_img = cv2.cvtColor(self.original_image, cv2.COLOR_RGB2GRAY)
+            self.fullsize_gray_image = ImageProcessing.convert_to_float(gray_img)
+        elif ext.lower() in (".nef", ".arw", "cr2") and os.path.isfile(full_path):
+            self.original_image, self.exif_info = ImageProcessing.read_raw_image(full_path)
             gray_img = cv2.cvtColor(self.original_image, cv2.COLOR_RGB2GRAY)
             self.fullsize_gray_image = ImageProcessing.convert_to_float(gray_img)
         else:
@@ -449,6 +454,12 @@ class ImageProcessing(object):
         img = tiff.imread(full_path)
         exif_info = Tyf.open(full_path)
         return img, exif_info
+
+    @staticmethod
+    def read_raw_image(full_path):
+        with rawpy.imread(full_path) as raw:
+            img = raw.postprocess(use_camera_wb=True)
+        return img, None
 
     @staticmethod
     def save_tif_image(full_path, img, exif=None):
