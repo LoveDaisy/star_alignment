@@ -21,22 +21,51 @@ import pywt
 import Tyf
 import tifffile as tiff
 import DataModel
+import argparse
 
-logging_level = logging.DEBUG
-logging_format = "%(asctime)s (%(name)s) [%(levelname)s] line %(lineno)d: %(message)s"
-logging.basicConfig(format=logging_format, level=logging_level)
+def reorder_images(images):
+    ''' reorder_images
+        Input: a list of image names
+        Return: a list, first item is the one in the middle,the rest in sorted order
+    '''
+    sortedImages=sorted(images)
+    ref=sortedImages[len(images)//2]
+    newlist=[ref]
+    sortedImages.remove(ref)
+    return newlist+sortedImages
 
+parser = argparse.ArgumentParser(description='Align stars in the sky')
+parser.add_argument('images', nargs='+',
+                    help='A list of image files')
+parser.add_argument('-o', '--output', default="aligned.tif" ,
+                    help='Output file')
+parser.add_argument('-d', '--debug', action='store_true',default=False,
+                    help='Output file')
+parser.add_argument('-k','--keepInterim', action='store_true',
+                    default=False,
+                    help='Keep all interim images')
+parser.add_argument('-f', '--focalLength', dest='focal', type=float, default=16.5,
+                    help='Focal length (default: 16.5)')
+
+args = parser.parse_args()
+
+if args.debug:
+    logging_level = logging.DEBUG
+    logging_format = "%(asctime)s (%(name)s) [%(levelname)s] line %(lineno)d: %(message)s"
+    logging.basicConfig(format=logging_format, level=logging_level)
+
+keepInterim=args.keepInterim
 data_model = DataModel.DataModel()
-#img_tmpl = u"DSC028{:2d}.tif"
-img_tmpl = u"DSC027{:2d}.ARW"
+outputName=args.output
 
-for p in [img_tmpl.format(i) for i in (21,20,22,23)]:
+for p in reorder_images(args.images):
     logging.debug("image: %s", p)
     data_model.add_image(p)
 
 ref_img = data_model.images[0]
-#f = ref_img.focal_len
-f=16.5
+f=args.focal
+logging.debug("Setting focal length to %f",f)
+
 img_shape = ref_img.fullsize_gray_image.shape
 img_size = np.array([img_shape[1], img_shape[0]])
 data_model.reset_result()
@@ -52,11 +81,12 @@ ref_img.features["feature"] = feature
 data_model.final_sky_img = np.copy(ref_img.original_image).astype("float32") / np.iinfo(
     ref_img.original_image.dtype).max
 
-# Initial sum image
+# Initialize aligned image list
 sky_imgs=[np.copy(data_model.final_sky_img)]
-serial=0
-result_img = (data_model.final_sky_img * np.iinfo("uint16").max).astype("uint16")
-DataModel.ImageProcessing.save_tif_image("test00.tif", result_img, data_model.images[0].exif_info)
+if keepInterim:
+    serial=0
+    result_img = (data_model.final_sky_img * np.iinfo("uint16").max).astype("uint16")
+    DataModel.ImageProcessing.save_tif_image("interim00.tif", result_img, data_model.images[0].exif_info)
 
 for img in data_model.images[1:]:
     pts, vol = DataModel.ImageProcessing.detect_star_points(img.fullsize_gray_image)
@@ -71,15 +101,16 @@ for img in data_model.images[1:]:
     tf, pair_idx = DataModel.ImageProcessing.fine_tune_transform(img.features, ref_img.features, pair_idx)
     img_tf = cv2.warpPerspective(img.original_image, tf[0], tuple(img_size))
     img_tf = img_tf.astype("float32") / np.iinfo(img_tf.dtype).max
-    serial=serial+1
     sky_imgs.append(np.copy(img_tf))
-    result_img = (img_tf * np.iinfo("uint16").max).astype("uint16")
-    DataModel.ImageProcessing.save_tif_image("test{:02d}.tif".format(serial), result_img, data_model.images[0].exif_info)
+    if keepInterim:
+        serial+=1
+        result_img = (img_tf * np.iinfo("uint16").max).astype("uint16")
+        DataModel.ImageProcessing.save_tif_image("interim{:02d}.tif".format(serial), result_img, data_model.images[0].exif_info)
 
 
 #data_model.final_sky_img = sum_img/(serial+1)
 data_model.final_sky_img = np.mean(np.asarray(sky_imgs),axis=0)
 
 result_img = (data_model.final_sky_img * np.iinfo("uint16").max).astype("uint16")
-DataModel.ImageProcessing.save_tif_image("test.tif", result_img, data_model.images[0].exif_info)
-
+DataModel.ImageProcessing.save_tif_image(outputName, result_img, data_model.images[0].exif_info)
+print ("Done. Output image in ",outputName)
