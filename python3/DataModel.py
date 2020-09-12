@@ -110,12 +110,12 @@ class DataModel(object):
         img_dir, name = os.path.split(path)
 
         if not os.path.exists(path) or not os.path.isfile(path):
-            self.logger.error("File %s not exists!", path)
+            self.logger.error("File %s does not exist!", path)
             return False
 
         for img in self.images:
             if path == img.full_path:
-                self.logger.info("Image is already open. File: %s", path)
+                self.logger.info("Image already exists. File: %s", path)
                 return False
 
         if self.is_adding_image:
@@ -204,7 +204,7 @@ class ImageProcessing(object):
         super(ImageProcessing, self).__init__()
 
     @staticmethod
-    def _try_wavedec(img_blr, resize_factor=0.25):
+    def wavelet_dec_rec(img_blr, resize_factor=0.25):
         img_shape = img_blr.shape
 
         need_resize = abs(resize_factor - 1) > 0.001
@@ -234,14 +234,16 @@ class ImageProcessing(object):
         logging.debug("detect_star_point()")
         logging.debug("resize_length = %s", resize_length)
 
-        sigma = 3
+        sigma = 2
         img_shape = img_gray.shape
         img_blr = cv2.GaussianBlur(img_gray, (9, 9), sigma)
         img_blr = (img_blr - np.mean(img_blr)) / (np.max(img_blr) - np.min(img_blr))
-
+##        contrast_img = cv2.normalize(cv2.subtract(img_gray,img_blr, dtype=cv2.CV_32F), None,alpha=0,
+##                                beta=255,norm_type=cv2.NORM_MINMAX)
+ 
         resize_factor = 1
         while max(img_shape) * resize_factor > resize_length:
-            resize_factor *= 0.5
+            resize_factor /= 2
 
         logging.debug("calc mask...")
         s = int(max(img_shape) * 0.02 * resize_factor * 2)
@@ -263,16 +265,14 @@ class ImageProcessing(object):
         
         while True:
             try:
-                img_rec = ImageProcessing._try_wavedec(img_blr, resize_factor=resize_factor) * mask
+##                img_rec = ImageProcessing.wavelet_dec_rec(contrast_img, resize_factor=resize_factor) * mask
+                img_rec = ImageProcessing.wavelet_dec_rec(img_blr, resize_factor=resize_factor) * mask
+
                 bw = ((img_rec > np.percentile(img_rec[mask], 99.5)) * mask).astype(np.uint8) * 255
-                # img_rec = ImageProcessing._try_wavedec(img_blr, resize_factor=resize_factor)
-                # bw = ((img_rec > np.percentile(img_rec, 99.5))).astype(np.uint8) * 255
                 bw = cv2.morphologyEx(bw, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
 
                 contours, _ = cv2.findContours(np.copy(bw), cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
-                #contours = [filter(lambda x: len(x) > 5, contours)]
-                contours = [x for x in contours if len(x) > 5]
-                #countours=[contour for contour in contours_orig if len(contour) > 5]
+                contours = [contour for contour in contours if len(contour) > 5]
                 logging.debug("%d star points detected", len(contours))
 
                 if len(contours) > 400:
@@ -286,10 +286,11 @@ class ImageProcessing(object):
                     resize_factor *= 2
         logging.debug("resize factor = %f", resize_factor)
 
-        elps = list(map(cv2.fitEllipse, contours))
-        centroids = np.array(list(map(lambda e: e[0], elps)))
-        areas = np.array(list(map(lambda x: cv2.contourArea(x) + 0.5 * len(x), contours)))
-        eccentricities = np.sqrt(np.array(list(map(lambda x: 1 - (x[1][0] / x[1][1]) ** 2, elps))))
+
+        elps = [cv2.fitEllipse(contour) for contour in contours]
+        centroids = np.array([e[0] for e in elps])
+        areas = np.array([cv2.contourArea(x) + 0.5 * len(x) for x in contours])
+        eccentricities = np.sqrt(np.array([1 - (x[1][0] / x[1][1]) ** 2 for x in elps]))
 
         mask = np.zeros(bw.shape, np.uint8)
         intensities = np.zeros(areas.shape)
@@ -301,7 +302,7 @@ class ImageProcessing(object):
             mask[rect[1]:rect[1] + rect[3] + 1, rect[0]:rect[0] + rect[2] + 1] = 0
             intensities[i] = val[0]
 
-        inds = np.logical_and(areas > 10, areas < 200, eccentricities < .9)
+        inds = np.logical_and(areas > 20, areas < 200, eccentricities < .9)
         inds = np.logical_and(inds, areas > np.percentile(areas, 20), intensities > np.percentile(intensities, 20))
 
         star_pts = centroids[inds]  # [x, y]
@@ -311,13 +312,35 @@ class ImageProcessing(object):
         return star_pts, areas * intensities
 
     @staticmethod
-    def convert_to_spherical_coord(star_pts, img_size, f):
-        logging.debug("convert_coord_img_sph()")
-        p0 = (star_pts - img_size / 2.0) / (np.max(img_size) / 2)
-        p = p0 * 18  # Fullframe half size, 18mm
-        lam = np.arctan2(p[:, 0], f)
-        phi = np.arcsin(p[:, 1] / np.sqrt(np.sum(p ** 2, axis=1) + f ** 2))
-        return np.stack((lam, phi), axis=-1)
+    def convert_to_spherical_coord(star_pts, img_size, focal_length,crop_factor=1.0):
+        '''
+        convert_to_spherical_coord
+        Input:
+        start_pts: np array of start points in x,y coodinates
+        img_size: image size in pixels
+        focal_length: focal length, the "real focal length" before crop factor. In real life no real effect observed.
+        crop_factor: sensor crop factor. In real life no real effect is observed.
+        Output: theta and phi in spherical corrdinates.
+        '''
+        logging.debug("convert_coord_img_sph(Focal length {0})".format(focal_length))
+        FullFrameSensorWidth=36                     #Full frame sensor width is 36mm
+        sensorSize=FullFrameSensorWidth/crop_factor #Actual sensor size
+        DPI = np.max(img_size)/sensorSize
+        
+        p0 = (star_pts - img_size / 2.0)            #Adjust start x,y coords to the middle of lens
+        p=p0/DPI
+
+##        p0 = (star_pts - img_size / 2.0) / (np.max(img_size) / 2)
+##        p = p0 * 18 # Fullframe half size, 18mm
+##        p = p0 * 18 / crop_factor # Fullframe half size, 18mm, with crop factor 1.5
+
+        #Now, with the original point in the center of lens, the x,y,z is actually focal_length,x, y
+        #therefore, theta = x/focal_length
+        #phi = y/sqrt(x**2 + y**2 + focal_length **2)
+
+        theta = np.arctan2(p[:, 0], focal_length)
+        phi = np.arcsin(p[:, 1] / np.sqrt(np.sum(p ** 2, axis=1) + focal_length ** 2))
+        return np.stack((theta, phi), axis=-1)
 
     @staticmethod
     def extract_point_features(sph, vol, k=15):
@@ -413,7 +436,9 @@ class ImageProcessing(object):
     def fine_tune_transform(feature1, feature2, init_pair_idx):
         ind = []
         k = 1
-        while len(ind) < 0.6 * min(len(feature1["pts"]), len(feature2["pts"])) and k < 10:
+        while len(ind) < 0.6 * min(len(feature1["pts"]), len(feature2["pts"])) and k <= 10:
+            if k==10:
+                raise ValueError("Optimal alignment cannot be achieved.")
             # Step 1. Randomly choose 20 points evenly distributed on the image
             rand_pts = np.random.rand(20, 2) * (np.amax(feature1["pts"], axis=0) - np.amin(feature1["pts"], axis=0)) * \
                        np.array([1, 0.8]) + np.amin(feature1["pts"], axis=0)
