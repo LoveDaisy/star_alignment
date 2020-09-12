@@ -71,7 +71,7 @@ img_size = np.array([img_shape[1], img_shape[0]])
 data_model.reset_result()
 
 pts, vol = DataModel.ImageProcessing.detect_star_points(ref_img.fullsize_gray_image)
-sph = DataModel.ImageProcessing.convert_to_spherical_coord(pts, np.array((img_shape[1], img_shape[0])), f)
+sph = DataModel.ImageProcessing.convert_to_spherical_coord(pts, np.array((img_shape[1], img_shape[0])), f,crop_factor=1.5)
 feature = DataModel.ImageProcessing.extract_point_features(sph, vol)
 ref_img.features["pts"] = pts
 ref_img.features["sph"] = sph
@@ -82,7 +82,8 @@ data_model.final_sky_img = np.copy(ref_img.original_image).astype("float32") / n
     ref_img.original_image.dtype).max
 
 # Initialize aligned image list
-sky_imgs=[np.copy(data_model.final_sky_img)]
+#sky_imgs=[np.copy(data_model.final_sky_img)]
+sum_img=np.copy(data_model.final_sky_img)
 if keepInterim:
     serial=0
     result_img = (data_model.final_sky_img * np.iinfo("uint16").max).astype("uint16")
@@ -90,26 +91,28 @@ if keepInterim:
 
 for img in data_model.images[1:]:
     pts, vol = DataModel.ImageProcessing.detect_star_points(img.fullsize_gray_image)
-    sph = DataModel.ImageProcessing.convert_to_spherical_coord(pts, img_size, f)
+    sph = DataModel.ImageProcessing.convert_to_spherical_coord(pts, img_size, f, crop_factor=1.5)
     feature = DataModel.ImageProcessing.extract_point_features(sph, vol)
     img.features["pts"] = pts
     img.features["sph"] = sph
     img.features["vol"] = vol
     img.features["feature"] = feature
 
-    pair_idx = DataModel.ImageProcessing.find_initial_match(img.features, ref_img.features)
-    tf, pair_idx = DataModel.ImageProcessing.fine_tune_transform(img.features, ref_img.features, pair_idx)
-    img_tf = cv2.warpPerspective(img.original_image, tf[0], tuple(img_size))
-    img_tf = img_tf.astype("float32") / np.iinfo(img_tf.dtype).max
-    sky_imgs.append(np.copy(img_tf))
-    if keepInterim:
-        serial+=1
-        result_img = (img_tf * np.iinfo("uint16").max).astype("uint16")
-        DataModel.ImageProcessing.save_tif_image("interim{:02d}.tif".format(serial), result_img, data_model.images[0].exif_info)
+    try:
+        pair_idx = DataModel.ImageProcessing.find_initial_match(img.features, ref_img.features)
+        tf, pair_idx = DataModel.ImageProcessing.fine_tune_transform(img.features, ref_img.features, pair_idx)
+        img_tf = cv2.warpPerspective(img.original_image, tf[0], tuple(img_size))
+        img_tf = img_tf.astype("float32") / np.iinfo(img_tf.dtype).max
+        sum_img=sum_img+img_tf
+        if keepInterim:
+            serial+=1
+            result_img = (img_tf * np.iinfo("uint16").max).astype("uint16")
+            DataModel.ImageProcessing.save_tif_image("interim{:02d}.tif".format(serial), result_img, data_model.images[0].exif_info)
+    except ValueError as e:
+        print("Alignment failed for this picture"+e)
 
-
-#data_model.final_sky_img = sum_img/(serial+1)
-data_model.final_sky_img = np.mean(np.asarray(sky_imgs),axis=0)
+data_model.final_sky_img = sum_img/(serial+1)
+#data_model.final_sky_img = np.mean(np.asarray(sky_imgs),axis=0)
 
 result_img = (data_model.final_sky_img * np.iinfo("uint16").max).astype("uint16")
 DataModel.ImageProcessing.save_tif_image(outputName, result_img, data_model.images[0].exif_info)
