@@ -237,26 +237,29 @@ class ImageProcessing(object):
         sigma = 2
         img_shape = img_gray.shape
         img_blr = cv2.GaussianBlur(img_gray, (9, 9), sigma)
-        img_blr = (img_blr - np.mean(img_blr)) / (np.max(img_blr) - np.min(img_blr))
-##        contrast_img = cv2.normalize(cv2.subtract(img_gray,img_blr, dtype=cv2.CV_32F), None,alpha=0,
-##                                beta=255,norm_type=cv2.NORM_MINMAX)
+        img_blr_mean=np.mean(img_blr)
+        img_blr_range=np.max(img_blr) - np.min(img_blr)
+        img_blr = (img_blr - img_blr_mean) / img_blr_range
  
         resize_factor = 1
         while max(img_shape) * resize_factor > resize_length:
             resize_factor /= 2
 
-        logging.debug("calc mask...")
-        s = int(max(img_shape) * 0.02 * resize_factor * 2)
+        logging.debug("Calculating mask...")
+
         tmp_mask = cv2.resize(img_gray, None, fx=resize_factor, fy=resize_factor)
-        tmp_mask = np.logical_and(tmp_mask < np.percentile(tmp_mask, 10), tmp_mask < 0.15).astype(np.uint8) * 255
-        logging.debug("calc mask logical select done")
-        tmp_mask = 255 - cv2.dilate(tmp_mask, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (s, s)))
+        tmp_mask_10percent=np.percentile(tmp_mask, 10)
+        tmp_mask = (tmp_mask < min(tmp_mask_10percent, 0.15)).astype(np.uint8) * 255
+##        tmp_mask = np.logical_and(tmp_mask < np.percentile(tmp_mask, 10), tmp_mask < 0.15).astype(np.uint8) * 255
+        logging.debug("Mask logical selection complete")
+        dilate_size = int(max(img_shape) * 0.02 * resize_factor * 5)
+        tmp_mask = 255 - cv2.dilate(tmp_mask, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (dilate_size, dilate_size)))
         tmp_mask = cv2.resize(tmp_mask, (img_shape[1], img_shape[0]))
         if mask is None:
             mask = tmp_mask > 127
         else:
             mask = np.logical_and(tmp_mask > 127, mask > 0)
-        logging.debug("calc mask done")
+        logging.debug("Mask calculation Complete")
 
         mask_rate = np.sum(mask) * 100.0 / np.prod(mask.shape)
         logging.debug("mask rate: %.2f", mask_rate)
@@ -286,28 +289,39 @@ class ImageProcessing(object):
                     resize_factor *= 2
         logging.debug("resize factor = %f", resize_factor)
 
-
+        #elps - match contours to an ellipse. Return a Box2D - coordinates of a rotated rectangle - 3x tuples
+        #first tuple is the center of the box, the second gives the width and the height and the last is the angle.
         elps = [cv2.fitEllipse(contour) for contour in contours]
+        #centroids - the "center" of the ellipses
         centroids = np.array([e[0] for e in elps])
-        areas = np.array([cv2.contourArea(x) + 0.5 * len(x) for x in contours])
-        eccentricities = np.sqrt(np.array([1 - (x[1][0] / x[1][1]) ** 2 for x in elps]))
+        #areas - the areas of the contours, but 0.5*len(contour)?
+        areas = np.array([cv2.contourArea(contour) + 0.5 * len(contour) for contour in contours])
+        #eccentricities - how irregular the ellipse is. 
+        eccentricities = np.sqrt(np.array([1 - (elp[1][0] / elp[1][1]) ** 2 for elp in elps]))
 
+        # Calculate "intensity"
+        
         mask = np.zeros(bw.shape, np.uint8)
         intensities = np.zeros(areas.shape)
         for i in range(len(contours)):
             cv2.drawContours(mask, contours[i], 0, 255, -1)
+            #It is a straight rectangle, it doesn't consider the rotation of the object. .
+            #Let (x,y) be the top-left coordinate of the rectangle and (w,h) be its width and height.
+            #x,y,w,h = cv2.boundingRect(cnt)
             rect = cv2.boundingRect(contours[i])
             val = cv2.mean(img_rec[rect[1]:rect[1] + rect[3] + 1, rect[0]:rect[0] + rect[2] + 1],
                            mask[rect[1]:rect[1] + rect[3] + 1, rect[0]:rect[0] + rect[2] + 1])
             mask[rect[1]:rect[1] + rect[3] + 1, rect[0]:rect[0] + rect[2] + 1] = 0
             intensities[i] = val[0]
 
-        inds = np.logical_and(areas > 20, areas < 200, eccentricities < .9)
-        inds = np.logical_and(inds, areas > np.percentile(areas, 20), intensities > np.percentile(intensities, 20))
+        valid_stars = np.logical_and(areas > 20, areas < 200, eccentricities < .8)
+        valid_stars = np.logical_and(valid_stars, areas > np.percentile(areas, 20), intensities > np.percentile(intensities, 20))
 
-        star_pts = centroids[inds]  # [x, y]
-        areas = areas[inds]
-        intensities = intensities[inds]
+        star_pts = centroids[valid_stars]  # [x, y]
+        print("Final star points = {0}".format(len(star_pts)))
+
+        areas = areas[valid_stars]
+        intensities = intensities[valid_stars]
 
         return star_pts, areas * intensities
 
@@ -483,7 +497,7 @@ class ImageProcessing(object):
     @staticmethod
     def read_raw_image(full_path):
         with rawpy.imread(full_path) as raw:
-            img = raw.postprocess(use_camera_wb=True)
+            img = raw.postprocess(use_camera_wb=True, output_bps=16)
         return img, None
 
     @staticmethod

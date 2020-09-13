@@ -109,7 +109,7 @@ for img in data_model.images[1:]:
             result_img = (img_tf * np.iinfo("uint16").max).astype("uint16")
             DataModel.ImageProcessing.save_tif_image("interim{:02d}.tif".format(serial), result_img, data_model.images[0].exif_info)
     except ValueError as e:
-        print("Alignment failed for this picture"+e)
+        print("Alignment failed for this picture:",str(e),". Discarded")
 
 data_model.final_sky_img = sum_img/(serial+1)
 #data_model.final_sky_img = np.mean(np.asarray(sky_imgs),axis=0)
