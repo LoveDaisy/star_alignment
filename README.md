@@ -31,7 +31,15 @@ Any suggestion about read and write metadata (exif information) of tiff file is 
 * tifffile: [https://github.com/blink1073/tifffile](https://github.com/blink1073/tifffile)
 * Tyf: [https://github.com/Moustikitos/tyf](https://github.com/Moustikitos/tyf)
 
-
+## Some updates by Sean Liu
+- Added Python3 support - and all subsequent changes are only for Python3
+- Added raw support by rawpy
+- Separated command line from DataModel.py
+- The main command line is now alignStar.py
+python3>python alignStar.py
+usage: alignStar.py [-h] [-o OUTPUT] [-d] [-k] [-f FOCAL] images [images ...]
+alignStar.py: error: the following arguments are required: images
+- Forego the writing of exif info to final tiff file as it doesn't seem to work well
 
 # 星点对齐叠加
 对多张星空图片进行星点对齐并叠加，适用于深空、星野图片，适用于长焦、广角拍摄的图片，改正了常见叠加方法无法对齐广角星空的缺点。
