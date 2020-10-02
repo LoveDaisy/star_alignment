@@ -4,6 +4,9 @@
 """
 Author: Jiajie Zhang
 Email: zhangjiajie043@gmail.com
+
+Updated: Sean Liu
+Email: sean.liu.2004@gmail.com
 """
 
 import logging
@@ -205,6 +208,11 @@ class ImageProcessing(object):
 
     @staticmethod
     def wavelet_dec_rec(img_blr, resize_factor=0.25):
+        '''
+        wavelet_dec_rec
+        Take a picture, does a wavelet decompsition, remove the low frequency (approximation) and highest details (noises)
+        and return the recomposed picture
+        '''
         img_shape = img_blr.shape
 
         need_resize = abs(resize_factor - 1) > 0.001
@@ -215,8 +223,9 @@ class ImageProcessing(object):
         else:
             img_blr_resize = img_blr
         coeffs = pywt.wavedec2(img_blr_resize, "db8", level=level)
-
+        #remove the low freq (approximation)
         coeffs[0].fill(0)
+        #remove the highest details (noise??)
         coeffs[-1][0].fill(0)
         coeffs[-1][1].fill(0)
         coeffs[-1][2].fill(0)
@@ -339,18 +348,19 @@ class ImageProcessing(object):
         logging.debug("convert_coord_img_sph(Focal length {0})".format(focal_length))
         FullFrameSensorWidth=36                     #Full frame sensor width is 36mm
         sensorSize=FullFrameSensorWidth/crop_factor #Actual sensor size
-        DPI = np.max(img_size)/sensorSize
+        PPMM = np.max(img_size)/sensorSize #Pixels per mm
         
         p0 = (star_pts - img_size / 2.0)            #Adjust start x,y coords to the middle of lens
-        p=p0/DPI
+        p=p0/PPMM #Convert coordinates to mm
 
 ##        p0 = (star_pts - img_size / 2.0) / (np.max(img_size) / 2)
 ##        p = p0 * 18 # Fullframe half size, 18mm
 ##        p = p0 * 18 / crop_factor # Fullframe half size, 18mm, with crop factor 1.5
 
         #Now, with the original point in the center of lens, the x,y,z is actually focal_length,x, y
-        #therefore, theta = x/focal_length
-        #phi = y/sqrt(x**2 + y**2 + focal_length **2)
+        #therefore, tan(theta) = x/focal_length
+        #ro**2 = x**2 + y**2 + focal_length **2, and
+        #sin(phi) = y/ro = y/sqrt(x**2 + y**2 + focal_length **2)
 
         theta = np.arctan2(p[:, 0], focal_length)
         phi = np.arcsin(p[:, 1] / np.sqrt(np.sum(p ** 2, axis=1) + focal_length ** 2))
@@ -358,19 +368,212 @@ class ImageProcessing(object):
 
     @staticmethod
     def extract_point_features(sph, vol, k=15):
+        '''
+            extract_point_features
+            Calculate the "features", or signatures of each starpoint
+            Identified by the angles (theta) and distances (ro) to K "neighbors"
+            input: sph: Spherical coordinates, theta([:0]) and phi ([:1])
+            vol: "Volume", i.e. the product of area and intensity/average luminosity
+            k: number of "neighbors"
+            output: Array of "features" of each star point derived from relationship between K neighbors:
+            theta: angle from the star point
+            rho: distance from the star point
+            vol: volume
+        '''
         logging.debug("extract_point_features()")
         pts_num = len(sph)
+        #convert theta,phi to x,y,z, assuming ro is 1
+        ##(Pdb) sph[:5]
+        ##array([[0.20259022, 0.24484171],
+        ##[0.21442283, 0.22747711],
+        ##[0.32032152, 0.21637399],
+        ##[0.44595074, 0.20546683],
+        ##[0.23049863, 0.21872081]])
+        ##(Pdb) sph.shape
+        ##(807, 2)
+        ##(Pdb) vec[:5]
+        ##array([[0.95033435, 0.19520639, 0.24240275],
+        ##       [0.95192778, 0.20730188, 0.22552035],
+        ##       [0.92700264, 0.30752967, 0.21468958],
+        ##       [0.88322397, 0.42224347, 0.20402419],
+        ##       [0.95035849, 0.22302005, 0.21698109]])
+        ##(Pdb) vec.shape
+        ##(807, 3)
         vec = np.stack((np.cos(sph[:, 1]) * np.cos(sph[:, 0]),
                         np.cos(sph[:, 1]) * np.sin(sph[:, 0]),
                         np.sin(sph[:, 1])), axis=-1)
+        #caclulate cosine distance between points
+        ##(Pdb) dist_mat[:5]
+        ##array([[1.        , 0.99978307, 0.99303555, ..., 0.64567441, 0.64174302,
+        ##        0.52492528],
+        ##       [0.99978307, 1.        , 0.99460791, ..., 0.66121218, 0.65401524,
+        ##        0.53142055],
+        ##       [0.99303555, 0.99460791, 1.        , ..., 0.6954192 , 0.64946226,
+        ##        0.4847697 ],
+        ##       [0.97123872, 0.97430891, 0.99240521, ..., 0.72273305, 0.63095057,
+        ##        0.41879119],
+        ##       [0.99929007, 0.99983878, 0.99615369, ..., 0.67181631, 0.65918926,
+        ##        0.52967285]])
+        ##(Pdb) dist_mat.shape
+        ##(807, 807)
         dist_mat = 1 - spd.cdist(vec, vec, "cosine")
+        #sort by distance and store the index to vec_dist_ind
+        #so each row is a list of 'neighbors' sorted by distance
+        ##(Pdb) vec_dist_ind[:5]
+        ##array([[  0,   1,   4, ..., 655, 670, 589],
+        ##       [  1,   4,   0, ..., 655, 670, 589],
+        ##       [  2,  16,   4, ..., 670, 655, 589],
+        ##       [  3,  19,  32, ..., 625, 655, 589],
+        ##       [  4,   1,   6, ..., 655, 670, 589]], dtype=int64)
+        ##(Pdb) vec_dist_ind.shape
+        ##(807, 807)
         vec_dist_ind = np.argsort(-dist_mat)
+        #dist_mat: set limit on distance to -1 or 1 if the distance is greater
         dist_mat = np.where(dist_mat < -1, -1, np.where(dist_mat > 1, 1, dist_mat))
+
+        # Calculate the angle to the closest 2*k (30) neighbors
+        ##(Pdb) newarray=np.array(range(pts_num))[:,np.newaxis]
+        ##(Pdb) newarray[:5]
+        ##array([[0],
+        ##       [1],
+        ##       [2],
+        ##       [3],
+        ##       [4]])
+        ##(Pdb) newarray.shape
+        ##(807, 1)
+        ##(Pdb) newarray2=dist_mat[np.array(range(pts_num))[:, np.newaxis], vec_dist_ind[:, :2 * k]]
+        ##(Pdb) newarray2[:5]
+        ##array([[1.        , 0.99978307, 0.99929007, 0.99875087, 0.99867543,
+        ##        0.99774196, 0.99651467, 0.99522945, 0.99431687, 0.99303555,
+        ##        0.98980877, 0.9897835 , 0.98864281, 0.98593628, 0.98409888,
+        ##        0.9793154 , 0.9786541 , 0.97691722, 0.97504663, 0.97250161,
+        ##        0.97123872, 0.96741949, 0.96387604, 0.96118626, 0.95920986,
+        ##        0.95847644, 0.95831648, 0.95446059, 0.95250298, 0.95231214],
+        ##       [1.        , 0.99983878, 0.99978307, 0.99956395, 0.99947571,
+        ##        0.99887252, 0.99799085, 0.99693974, 0.99631799, 0.99460791,
+        ##        0.99120933, 0.99120848, 0.98904372, 0.98852934, 0.9875658 ,
+        ##        0.98212887, 0.98107722, 0.98076999, 0.97714002, 0.97697474,
+        ##        0.97430891, 0.97233307, 0.9692128 , 0.966164  , 0.96435648,
+        ##        0.9636905 , 0.96355495, 0.95830156, 0.95508435, 0.95205324],
+        ##       [1.        , 0.99633358, 0.99615369, 0.99545471, 0.99502533,
+        ##        0.99488179, 0.99460791, 0.99460089, 0.99386768, 0.99372842,
+        ##        0.99303555, 0.99240521, 0.98872151, 0.98764197, 0.98663157,
+        ##        0.98616583, 0.98354195, 0.97993372, 0.97985356, 0.97948118,
+        ##        0.97860824, 0.97602759, 0.97549135, 0.97112248, 0.9678281 ,
+        ##        0.96733452, 0.9662762 , 0.96620473, 0.96573786, 0.9651095 ],
+        ##       [1.        , 0.99393842, 0.99270493, 0.99240521, 0.9921848 ,
+        ##        0.99080659, 0.98904185, 0.9868491 , 0.98566061, 0.98220744,
+        ##        0.98205503, 0.97819791, 0.97781755, 0.97762317, 0.97728185,
+        ##        0.97714599, 0.97690821, 0.97652103, 0.97599684, 0.97576764,
+        ##        0.97562424, 0.97495989, 0.97474434, 0.97430891, 0.97376893,
+        ##        0.97355382, 0.97123872, 0.96890413, 0.96717047, 0.96532142],
+        ##       [1.        , 0.99983878, 0.99979891, 0.99962638, 0.99929007,
+        ##        0.99926038, 0.9986371 , 0.99766438, 0.99750275, 0.99615369,
+        ##        0.99227467, 0.99096705, 0.99068277, 0.9900439 , 0.98614035,
+        ##        0.98360065, 0.98267646, 0.98062312, 0.98041466, 0.97781755,
+        ##        0.97649975, 0.97626962, 0.97292263, 0.96867111, 0.96832784,
+        ##        0.96700381, 0.96629306, 0.9620072 , 0.95689215, 0.95567269]])
+        ##(Pdb) newarray2.shape
+        ##(807, 30)
+        ##(Pdb) dist_mat[:2]
+        ##array([[0.        , 0.02082958, 0.03768328, 0.04998787, 0.05147547,
+        ##        0.0672144 , 0.0835147 , 0.09771748, 0.10666323, 0.1180894 ,
+        ##        0.1428887 , 0.14306601, 0.15085588, 0.16790957, 0.178569  ,
+        ##        0.20374645, 0.20698925, 0.21527719, 0.22386532, 0.23505467,
+        ##        0.24041719, 0.25596476, 0.26960553, 0.27952622, 0.28660253,
+        ##        0.2891856 , 0.289746  , 0.30294987, 0.30944418, 0.31007025],
+        ##       [0.        , 0.01795692, 0.02082958, 0.02953238, 0.03238328,
+        ##        0.04749079, 0.06340067, 0.07825369, 0.08584026, 0.10389361,
+        ##        0.13269194, 0.13269839, 0.14816439, 0.15160907, 0.15786103,
+        ##        0.18933892, 0.19484742, 0.19642792, 0.21423169, 0.21500776,
+        ##        0.22716452, 0.23577727, 0.24878299, 0.26087757, 0.26779581,
+        ##        0.27030125, 0.2708084 , 0.2897982 , 0.30085205, 0.31091764]])
+        ##(Pdb) dist_mat.shape
+        ##(807, 30)
         dist_mat = np.arccos(dist_mat[np.array(range(pts_num))[:, np.newaxis], vec_dist_ind[:, :2 * k]])
+        ##vol: the "volume" of the stars, e.g intensity*area
+        ##(Pdb) vol[:2]
+        ##array([4.03190754, 1.77022472])
+        ##(Pdb) vol.shape
+        ##(807,)
+        ##Now convert vol to an array so each row is vol of first 2*k neighbours
+        ##(Pdb) vec_dist_ind[:2,:2*k]
+        ##array([[ 0,  1,  4,  6,  8, 10, 13, 18, 16,  2, 26,  5, 29, 35, 27, 41,
+        ##49, 50, 45, 43,  3, 40, 59, 79, 83, 32, 84, 14, 75, 86],
+        ##[ 1,  4,  0,  6,  8, 10, 13, 18, 16,  2, 26, 29, 35,  5, 27, 49,
+        ##41, 50, 43, 45,  3, 40, 59, 79, 83, 32, 84, 86, 75, 14]],
+        ##dtype=int64)
+        ##(Pdb) vol[:2]
+        ##array([[4.03190754, 1.77022472, 4.75876305, 1.46713503, 1.48238819,
+        ##7.97886273, 1.67044872, 2.87948643, 3.74971446, 2.9155588 ,
+        ##2.74928313, 1.4914364 , 5.43835473, 3.60779759, 3.70311116,
+        ##1.38808657, 4.05959117, 2.16528917, 4.76728506, 2.74462014,
+        ##3.06008023, 1.41508402, 1.70203667, 6.97509102, 7.40206957,
+        ##2.01168032, 1.27406147, 2.76963677, 1.91303076, 3.80280961],
+        ##[1.77022472, 4.75876305, 4.03190754, 1.46713503, 1.48238819,
+        ##7.97886273, 1.67044872, 2.87948643, 3.74971446, 2.9155588 ,
+        ##2.74928313, 5.43835473, 3.60779759, 1.4914364 , 3.70311116,
+        ##4.05959117, 1.38808657, 2.16528917, 2.74462014, 4.76728506,
+        ##3.06008023, 1.41508402, 1.70203667, 6.97509102, 7.40206957,
+        ##2.01168032, 1.27406147, 3.80280961, 1.91303076, 2.76963677]])
+        ##(Pdb) vol.shape
+        ##(807, 30)
         vol = vol[vec_dist_ind[:, :2 * k]]
+        ##Create index of sorted product of vol and distance in descending order
+        ##(Pdb) vol[:2]
+        ##array([[4.03190754, 1.77022472, 4.75876305, 1.46713503, 1.48238819,
+        ##        7.97886273, 1.67044872, 2.87948643, 3.74971446, 2.9155588 ,
+        ##        2.74928313, 1.4914364 , 5.43835473, 3.60779759, 3.70311116,
+        ##        1.38808657, 4.05959117, 2.16528917, 4.76728506, 2.74462014,
+        ##        3.06008023, 1.41508402, 1.70203667, 6.97509102, 7.40206957,
+        ##        2.01168032, 1.27406147, 2.76963677, 1.91303076, 3.80280961],
+        ##       [1.77022472, 4.75876305, 4.03190754, 1.46713503, 1.48238819,
+        ##        7.97886273, 1.67044872, 2.87948643, 3.74971446, 2.9155588 ,
+        ##        2.74928313, 5.43835473, 3.60779759, 1.4914364 , 3.70311116,
+        ##        4.05959117, 1.38808657, 2.16528917, 2.74462014, 4.76728506,
+        ##        3.06008023, 1.41508402, 1.70203667, 6.97509102, 7.40206957,
+        ##        2.01168032, 1.27406147, 3.80280961, 1.91303076, 2.76963677]])
+        ##(Pdb) dist_mat[:2]
+        ##array([[0.        , 0.02082958, 0.03768328, 0.04998787, 0.05147547,
+        ##        0.0672144 , 0.0835147 , 0.09771748, 0.10666323, 0.1180894 ,
+        ##        0.1428887 , 0.14306601, 0.15085588, 0.16790957, 0.178569  ,
+        ##        0.20374645, 0.20698925, 0.21527719, 0.22386532, 0.23505467,
+        ##        0.24041719, 0.25596476, 0.26960553, 0.27952622, 0.28660253,
+        ##        0.2891856 , 0.289746  , 0.30294987, 0.30944418, 0.31007025],
+        ##       [0.        , 0.01795692, 0.02082958, 0.02953238, 0.03238328,
+        ##        0.04749079, 0.06340067, 0.07825369, 0.08584026, 0.10389361,
+        ##        0.13269194, 0.13269839, 0.14816439, 0.15160907, 0.15786103,
+        ##        0.18933892, 0.19484742, 0.19642792, 0.21423169, 0.21500776,
+        ##        0.22716452, 0.23577727, 0.24878299, 0.26087757, 0.26779581,
+        ##        0.27030125, 0.2708084 , 0.2897982 , 0.30085205, 0.31091764]])
+        ##(Pdb) (vol*dist_mat)[:2]
+        ##array([[0.        , 0.03687304, 0.1793258 , 0.07333896, 0.07630663,
+        ##        0.53629446, 0.13950703, 0.28137615, 0.39995667, 0.34429659,
+        ##        0.3928415 , 0.21337385, 0.82040779, 0.60578375, 0.66126086,
+        ##        0.28281772, 0.84029175, 0.46613737, 1.06722981, 0.64513578,
+        ##        0.7356959 , 0.36221164, 0.4588785 , 1.9497208 , 2.12145186, <==
+        ##        0.58174897, 0.36915422, 0.83906109, 0.59197623, 1.17913813],
+        ##       [0.        , 0.08545273, 0.08398294, 0.04332799, 0.04800459,
+        ##        0.37892246, 0.10590757, 0.22533045, 0.32187647, 0.30290794,
+        ##        0.36480771, 0.72166089, 0.53454713, 0.22611528, 0.58457693,
+        ##        0.7686386 , 0.27046509, 0.42532325, 0.58798462, 1.02500328,
+        ##        0.69514164, 0.33364464, 0.42343777, 1.81964481, 1.98224319,
+        ##        0.54375971, 0.34502655, 1.10204736, 0.57553922, 0.86112892]])
+        ##(Pdb) vol_ind[:2]
+        ##array([[24, 23, 29, 18, 16, 27, 12, 20, 14, 19, 13, 28, 25,  5, 17, 22,
+        ##         8, 10, 26, 21,  9, 15,  7, 11,  2,  6,  4,  3,  1,  0],
+        ##       [24, 23, 27, 19, 29, 15, 11, 20, 18, 14, 28, 25, 12, 17, 22,  5,
+        ##        10, 26, 21,  8,  9, 16, 13,  7,  6,  1,  2,  4,  3,  0]],
+        ##      dtype=int64)
         vol_ind = np.argsort(-vol * dist_mat)
 
-        def make_cross_mat(v):
+
+        def make_cross_matrix(v):
+        #Make a matrix for further angle calculation
+        # Input v (x,y,z)
+        # Return [0,-z,y]
+        #       [z,0,-x]
+        #       [-y,x,0]
             return np.array([[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]])
 
         theta_feature = np.zeros((pts_num, k))
@@ -378,11 +581,11 @@ class ImageProcessing(object):
         vol_feature = np.zeros((pts_num, k))
 
         for i in range(pts_num):
-            v0 = vec[i]
-            vs = vec[vec_dist_ind[i, vol_ind[i, :k]]]
-            angles = np.inner(vs, make_cross_mat(v0))
-            angles = angles / la.norm(angles, axis=1)[:, np.newaxis]
-            cr = np.inner(angles, make_cross_mat(angles[0]))
+            v0 = vec[i] #current point vector, x,y,z
+            vs = vec[vec_dist_ind[i, vol_ind[i, :k]]] #coordinates[x,y,z] of k neighbours sorted by vol*dist
+            angles = np.inner(vs, make_cross_matrix(v0)) #[-y1*z0+z1*y0,x1*z0-z1*x0,-x1*y0+y1*x0]
+            angles = angles / la.norm(angles, axis=1)[:, np.newaxis] 
+            cr = np.inner(angles, make_cross_matrix(angles[0]))
             s = la.norm(cr, axis=1) * np.sign(np.inner(cr, v0))
             c = np.inner(angles, angles[0])
             theta_feature[i] = np.arctan2(s, c)
@@ -405,9 +608,10 @@ class ImageProcessing(object):
         logging.debug("find_initial_match()")
         measure_dist_mat = spd.cdist(feature1["feature"], feature2["feature"], "cosine")
         pts1, pts2 = feature1["pts"], feature2["pts"]
-        pts_mean = np.mean(np.vstack((pts1, pts2)), axis=0)
-        pts_min = np.min(np.vstack((pts1, pts2)), axis=0)
-        pts_max = np.max(np.vstack((pts1, pts2)), axis=0)
+        pts_stack=np.vstack((pts1, pts2))
+        pts_mean = np.mean(pts_stack, axis=0)
+        pts_min = np.min(pts_stack, axis=0)
+        pts_max = np.max(pts_stack, axis=0)
         pts_dist_mat = spd.cdist((pts1 - pts_mean) / (pts_max - pts_min), (pts2 - pts_mean) / (pts_max - pts_min),
                                  "euclidean")
         alpha = 0.00
@@ -443,7 +647,7 @@ class ImageProcessing(object):
         dist_th = max(np.max(feature1["pts"]), np.max(feature2["pts"])) * 0.3
         pair_idx = pair_idx[np.logical_and(theta < theta_th, pts_dist < dist_th)]
         
-        logging.debug("find {0} pairs for initial".format(len(pair_idx)))
+        logging.debug("Found {0} initial pairs.".format(len(pair_idx)))
         return pair_idx
 
     @staticmethod
