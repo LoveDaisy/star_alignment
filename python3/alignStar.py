@@ -84,8 +84,8 @@ data_model.final_sky_img = np.copy(ref_img.original_image).astype("float32") / n
 # Initialize aligned image list
 #sky_imgs=[np.copy(data_model.final_sky_img)]
 sum_img=np.copy(data_model.final_sky_img)
+serial=0
 if keepInterim:
-    serial=0
     result_img = (data_model.final_sky_img * np.iinfo("uint16").max).astype("uint16")
     DataModel.ImageProcessing.save_tif_image("interim00.tif", result_img, data_model.images[0].exif_info)
 
@@ -104,8 +104,8 @@ for img in data_model.images[1:]:
         img_tf = cv2.warpPerspective(img.original_image, tf[0], tuple(img_size))
         img_tf = img_tf.astype("float32") / np.iinfo(img_tf.dtype).max
         sum_img=sum_img+img_tf
+        serial+=1
         if keepInterim:
-            serial+=1
             result_img = (img_tf * np.iinfo("uint16").max).astype("uint16")
             DataModel.ImageProcessing.save_tif_image("interim{:02d}.tif".format(serial), result_img, data_model.images[0].exif_info)
     except ValueError as e:
