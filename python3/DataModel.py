@@ -20,6 +20,7 @@ import pywt
 import Tyf
 import tifffile as tiff
 import rawpy
+from numpy.lib import recfunctions as rfn
 
 
 class Image(object):
@@ -32,12 +33,12 @@ class Image(object):
             image features
     """
 
-    def __init__(self, full_path):
+    def __init__(self, full_path,focal_length=11):
         super(Image, self).__init__()
 
         self.full_path = full_path
         self.dir, self.name = os.path.split(full_path)
-        self.focal_len = None
+        self.focal_len = focal_length
         self.features = {}
         self.tf = None
 
@@ -67,7 +68,7 @@ class Image(object):
             self.focal_len = None
 
     def reset_all(self):
-        self.reset_focal_length()
+        #self.reset_focal_length()
         self.features = {}
         self.tf = None
 
@@ -108,7 +109,7 @@ class DataModel(object):
         # Other GUI options
         self.merge_option_type = self.ALIGN_STARS
 
-    def add_image(self, path):
+    def add_image(self, path, focal_length=11):
         self.logger.debug("add_image()")
         img_dir, name = os.path.split(path)
 
@@ -125,10 +126,11 @@ class DataModel(object):
             return False
 
         self.is_adding_image = True
-        img = Image(path)
-        focal_len = img.get_exif_value("FocalLength")
+        img = Image(path,focal_length)
+        #focal_len = img.get_exif_value("FocalLength")
+        
         self.images.append(img)
-        self.logger.debug("Loading image %s... Focal length = %s", name, focal_len)
+        self.logger.debug("Loading image %s... Focal length = %s", name, focal_length)
         if not self.image_dir:
             self.image_dir = img_dir
         self.is_adding_image = False
@@ -300,13 +302,19 @@ class ImageProcessing(object):
 
         #elps - match contours to an ellipse. Return a Box2D - coordinates of a rotated rectangle - 3x tuples
         #first tuple is the center of the box, the second gives the width and the height and the last is the angle.
-        elps = [cv2.fitEllipse(contour) for contour in contours]
+        #elps = [cv2.fitEllipse(contour) for contour in contours]
+        elps=np.fromiter(map(cv2.fitEllipse, contours),dtype=[('centroid',[('x',np.float),('y',np.float)]),
+                                                    ('shape',[('width',np.float),('height',np.float)]),
+                                                     ('rotation',np.float)])
         #centroids - the "center" of the ellipses
-        centroids = np.array([e[0] for e in elps])
+        #centroids = np.array([e[0] for e in elps])
+        #centroids=elps['centroid']
+        centroids=rfn.structured_to_unstructured(elps['centroid'])
         #areas - the areas of the contours, but 0.5*len(contour)?
         areas = np.array([cv2.contourArea(contour) + 0.5 * len(contour) for contour in contours])
         #eccentricities - how irregular the ellipse is. 
-        eccentricities = np.sqrt(np.array([1 - (elp[1][0] / elp[1][1]) ** 2 for elp in elps]))
+        #eccentricities = np.sqrt(np.array([1 - (elp[1][0] / elp[1][1]) ** 2 for elp in elps]))
+        eccentricities = np.sqrt(np.array([1 - (elp['shape']['width'] / elp['shape']['height']) ** 2 for elp in elps]))
 
         # Calculate "intensity"
         
@@ -341,7 +349,7 @@ class ImageProcessing(object):
         Input:
         start_pts: np array of start points in x,y coodinates
         img_size: image size in pixels
-        focal_length: focal length, the "real focal length" before crop factor. In real life no real effect observed.
+        focal_length: focal length, the "real focal length" before crop factor.
         crop_factor: sensor crop factor. In real life no real effect is observed.
         Output: theta and phi in spherical corrdinates.
         '''
@@ -548,11 +556,12 @@ class ImageProcessing(object):
             return
         logging.debug("saving image...")
         tiff.imsave(full_path, img)
-        # Not saving exif as it's problematic
-        #tmp_exif = Tyf.open(full_path)
-        #tmp_exif.load_raster()
-        #if exif and isinstance(exif, Tyf.TiffFile):
-        #   logging.debug("saving exif...")
-        #    exif[0].stripes = tmp_exif[0].stripes
-        #    exif.save(full_path)
+
+##        #Tyf still doesn't work properly
+##        tmp_exif = Tyf.open(full_path)
+##        tmp_exif.load_raster()
+##        if exif and isinstance(exif, Tyf.TiffFile):
+##           logging.debug("saving exif...")
+##           exif[0].stripes = tmp_exif[0].stripes
+##           exif.save(full_path)
 
