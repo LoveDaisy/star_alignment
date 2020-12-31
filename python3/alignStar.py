@@ -44,8 +44,10 @@ parser.add_argument('-d', '--debug', action='store_true',default=False,
 parser.add_argument('-k','--keepInterim', action='store_true',
                     default=False,
                     help='Keep all interim images')
-parser.add_argument('-f', '--focalLength', dest='focal', type=float, default=16.5,
-                    help='Focal length (default: 16.5)')
+parser.add_argument('-f', '--focalLength', dest='focal', type=float,
+                    help='Focal length (default: 11)')
+parser.add_argument('-c', '--cropFactor', dest='cropFactor', type=float, default=1.0,
+                    help='Crop factor (default: 1.0)')
 
 args = parser.parse_args()
 
@@ -64,6 +66,7 @@ for p in reorder_images(args.images):
 
 ref_img = data_model.images[0]
 f=args.focal
+crop_factor=args.cropFactor
 logging.debug("Setting focal length to %f",f)
 
 img_shape = ref_img.fullsize_gray_image.shape
@@ -71,7 +74,7 @@ img_size = np.array([img_shape[1], img_shape[0]])
 data_model.reset_result()
 
 pts, vol = DataModel.ImageProcessing.detect_star_points(ref_img.fullsize_gray_image)
-sph = DataModel.ImageProcessing.convert_to_spherical_coord(pts, np.array((img_shape[1], img_shape[0])), f,crop_factor=1.5)
+sph = DataModel.ImageProcessing.convert_to_spherical_coord(pts, np.array((img_shape[1], img_shape[0])), f,crop_factor)
 feature = DataModel.ImageProcessing.extract_point_features(sph, vol)
 ref_img.features["pts"] = pts
 ref_img.features["sph"] = sph
@@ -91,7 +94,7 @@ if keepInterim:
 
 for img in data_model.images[1:]:
     pts, vol = DataModel.ImageProcessing.detect_star_points(img.fullsize_gray_image)
-    sph = DataModel.ImageProcessing.convert_to_spherical_coord(pts, img_size, f, crop_factor=1.5)
+    sph = DataModel.ImageProcessing.convert_to_spherical_coord(pts, img_size, f, crop_factor)
     feature = DataModel.ImageProcessing.extract_point_features(sph, vol)
     img.features["pts"] = pts
     img.features["sph"] = sph

@@ -245,9 +245,11 @@ class ImageProcessing(object):
         logging.debug("detect_star_point()")
         logging.debug("resize_length = %s", resize_length)
 
-        sigma = 2
+        sigma = 3
         img_shape = img_gray.shape
         img_blr = cv2.GaussianBlur(img_gray, (9, 9), sigma)
+#12/25/2020 test - add clarity by subtract img_blr from gray image
+#        img_blr=img_gray - img_blr
         img_blr_mean=np.mean(img_blr)
         img_blr_range=np.max(img_blr) - np.min(img_blr)
         img_blr = (img_blr - img_blr_mean) / img_blr_range
@@ -260,10 +262,9 @@ class ImageProcessing(object):
 
         tmp_mask = cv2.resize(img_gray, None, fx=resize_factor, fy=resize_factor)
         tmp_mask_10percent=np.percentile(tmp_mask, 10)
-        tmp_mask = (tmp_mask < min(tmp_mask_10percent, 0.15)).astype(np.uint8) * 255
-##        tmp_mask = np.logical_and(tmp_mask < np.percentile(tmp_mask, 10), tmp_mask < 0.15).astype(np.uint8) * 255
+        tmp_mask = np.logical_and(tmp_mask < np.percentile(tmp_mask, 10), tmp_mask < 0.15).astype(np.uint8) * 255
         logging.debug("Mask logical selection complete")
-        dilate_size = int(max(img_shape) * 0.02 * resize_factor * 5)
+        dilate_size = int(max(img_shape) * 0.02 * resize_factor * 2)
         tmp_mask = 255 - cv2.dilate(tmp_mask, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (dilate_size, dilate_size)))
         tmp_mask = cv2.resize(tmp_mask, (img_shape[1], img_shape[0]))
         if mask is None:
@@ -274,12 +275,12 @@ class ImageProcessing(object):
 
         mask_rate = np.sum(mask) * 100.0 / np.prod(mask.shape)
         logging.debug("mask rate: %.2f", mask_rate)
-        if mask_rate < 50:
-            mask = np.ones(tmp_mask.shape, dtype="bool")
+        # if mask rate is smaller than half, use the whole size. But why?
+        #if mask_rate < 50:
+        #    mask = np.ones(tmp_mask.shape, dtype="bool")
         
         while True:
             try:
-##                img_rec = ImageProcessing.wavelet_dec_rec(contrast_img, resize_factor=resize_factor) * mask
                 img_rec = ImageProcessing.wavelet_dec_rec(img_blr, resize_factor=resize_factor) * mask
 
                 bw = ((img_rec > np.percentile(img_rec[mask], 99.5)) * mask).astype(np.uint8) * 255
@@ -428,10 +429,18 @@ class ImageProcessing(object):
         for i in range(pts_num):
             v0 = vec[i] #current point vector, x,y,z
             vs = vec[vec_dist_ind[i, vol_ind[i, :k]]] #coordinates[x,y,z] of k neighbours sorted by vol*dist
-            angles = np.inner(vs, make_cross_matrix(v0)) #[-y1*z0+z1*y0,x1*z0-z1*x0,-x1*y0+y1*x0]
+#            angles = np.inner(vs, make_cross_matrix(v0)) #[-y1*z0+z1*y0,x1*z0-z1*x0,-x1*y0+y1*x0]
+#12/30/2020 suspect this is cross product
+#compare it with np.cross
+            angles=np.cross(v0,vs)
+#            print("yes" if (angles2==angles).all() else "no")
             #la.norm by default is Frobenius as in sqrt(sum(angles **2),axis=1))
             angles = angles / la.norm(angles, axis=1)[:, np.newaxis] 
-            cr = np.inner(angles, make_cross_matrix(angles[0]))
+#            cr = np.inner(angles, make_cross_matrix(angles[0]))
+#12/30/2020 suspect this is cross product
+#compare it with np.cross
+            cr=np.cross(angles[0],angles)
+#            print("YES" if (cr2==cr).all() else "NO")
             s = la.norm(cr, axis=1) * np.sign(np.inner(cr, v0))
             c = np.inner(angles, angles[0])
             theta_feature[i] = np.arctan2(s, c)
@@ -554,7 +563,7 @@ class ImageProcessing(object):
     def save_tif_image(full_path, img, exif=None):
         if img.dtype != np.uint8 and img.dtype != np.uint16:
             return
-        logging.debug("saving image...")
+        logging.debug("Saving image:{}.".format(full_path))
         tiff.imsave(full_path, img)
 
 ##        #Tyf still doesn't work properly
