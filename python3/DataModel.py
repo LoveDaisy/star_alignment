@@ -17,7 +17,7 @@ import numpy as np
 import numpy.linalg as la
 from scipy.spatial import distance as spd
 import pywt
-import Tyf
+#import Tyf
 import tifffile as tiff
 import rawpy
 from numpy.lib import recfunctions as rfn
@@ -25,20 +25,27 @@ from numpy.lib import recfunctions as rfn
 
 class Image(object):
     """ Image class
+        Arguments
+            full_path
+            focal_length
+            crop_factor
         Attributes:
             full path
+            focal length
+            crop factor
             original image, may be uint16 type
             fullsize gray image
-            exif info, Tyf.TiffFile type
+            exif info, Tyf.TiffFile type [Unused]
             image features
     """
 
-    def __init__(self, full_path,focal_length=11):
+    def __init__(self, full_path,focal_length,crop_factor):
         super(Image, self).__init__()
 
         self.full_path = full_path
         self.dir, self.name = os.path.split(full_path)
         self.focal_len = focal_length
+        self.crop_factor=crop_factor
         self.features = {}
         self.tf = None
 
@@ -55,33 +62,34 @@ class Image(object):
             self.original_image = None
             self.fullsize_gray_image = None
             self.exif_info = None
-
-        self.reset_all()
-
-    def reset_focal_length(self):
-        f = self.get_exif_value("FocalLength")
-        if f and len(f) == 2:
-            self.focal_len = f[0] * 1.0 / f[1]
-        elif f and len(f) == 1:
-            self.focal_len = f[0]
-        else:
-            self.focal_len = None
+##        self.reset_all() #This is initializer, no need to reset_all
 
     def reset_all(self):
         #self.reset_focal_length()
         self.features = {}
         self.tf = None
 
-    def get_exif_value(self, name):
-        if not self.exif_info:
-            return None
+    def get_focal_length(self):
+        return self.focal_len
+    
+##    def get_exif_value(self, name):
+##        if not self.exif_info:
+##            return None
+##
+##        info = self.exif_info[0].find(name)
+##        if not info:
+##            return None
+##        else:
+##            return info.value
 
-        info = self.exif_info[0].find(name)
-        if not info:
-            return None
-        else:
-            return info.value
-
+##    def reset_focal_length(self):
+##        f = self.get_exif_value("FocalLength")
+##        if f and len(f) == 2:
+##            self.focal_len = f[0] * 1.0 / f[1]
+##        elif f and len(f) == 1:
+##            self.focal_len = f[0]
+##        else:
+##            self.focal_len = None
 
 class DataModel(object):
     # Align options
@@ -109,41 +117,47 @@ class DataModel(object):
         # Other GUI options
         self.merge_option_type = self.ALIGN_STARS
 
-    def add_image(self, path, focal_length=11):
+    def add_image(self, path, focal_length,crop_factor):
         self.logger.debug("add_image()")
         img_dir, name = os.path.split(path)
 
         if not os.path.exists(path) or not os.path.isfile(path):
-            self.logger.error("File %s does not exist!", path)
+            self.logger.error(f"File {path} does not exist!")
             return False
 
         for img in self.images:
             if path == img.full_path:
-                self.logger.info("Image already exists. File: %s", path)
+                self.logger.info(f"Image file {path} already exists.")
                 return False
 
         if self.is_adding_image:
+            self.logger.info(f"Adding image in progress. Try again later. File {path}")
             return False
 
         self.is_adding_image = True
-        img = Image(path,focal_length)
-        #focal_len = img.get_exif_value("FocalLength")
+        img = Image(path,focal_length,crop_factor)
+##        focal_len = focal_length
+##        crop=crop_factor
         
         self.images.append(img)
-        self.logger.debug("Loading image %s... Focal length = %s", name, focal_length)
+        self.logger.debug(f"Loading image {name}, Focal length ={focal_length}, crop factor={crop_factor}" )
         if not self.image_dir:
             self.image_dir = img_dir
         self.is_adding_image = False
         return True
 
-    def update_final_sky(self, img):
-        self.logger.debug("update_final_sky()")
+    def accumulate_final_sky(self, img):
+        self.logger.debug("accumulate_final_sky()")
         self.final_sky_num += 1
         if self.final_sky_img is None and self.final_sky_num == 1:
             self.final_sky_img = np.copy(img)
         elif self.final_sky_img is not None and self.final_sky_num > 0:
-            # self.final_sky_img = np.fmax(self.final_sky_img, img)
-            self.final_sky_img = self.final_sky_img / self.final_sky_num * (self.final_sky_num - 1) + img / self.final_sky_num
+            self.final_sky_img = self.final_sky_img + img
+            
+    def update_final_sky(self):
+        self.logger.debug("update_final_sky()")
+        if self.final_sky_img is not None and self.final_sky_num > 0:
+            self.final_sky_img = self.final_sky_img / self.final_sky_num
 
     def update_final_ground(self, img):
         self.logger.debug("update_final_ground()")
@@ -180,28 +194,28 @@ class DataModel(object):
             img.features = {}
 
     def has_image(self):
-        res = len(self.images) > 0
-        self.logger.debug("has_image(): %s", res)
-        return res
+        result = len(self.images) > 0
+        self.logger.debug(f"has_image(): {result}")
+        return result
 
     def iter_images(self):
         self.logger.debug("iter_images()")
         return iter(self.images)
 
     def total_images(self):
-        res = len(self.images)
-        self.logger.debug("total_images(): %s", res)
-        return res
+        result = len(self.images)
+        self.logger.debug(f"total_images(): {result}")
+        return result
 
     def has_sky_result(self):
-        res = self.final_sky_img is not None
-        self.logger.debug("has_sky_result(): %s", res)
-        return res
+        result = self.final_sky_img is not None
+        self.logger.debug(f"has_sky_result(): {result}" )
+        return result
 
     def has_ground_result(self):
-        res = self.final_ground_img is not None
-        self.logger.debug("has_ground_result(): %s", res)
-        return res
+        result = self.final_ground_img is not None
+        self.logger.debug(f"has_ground_result(): {result}")
+        return result
 
 
 class ImageProcessing(object):
@@ -212,7 +226,8 @@ class ImageProcessing(object):
     def wavelet_dec_rec(img_blr, resize_factor=0.25):
         '''
         wavelet_dec_rec
-        Take a picture, does a wavelet decompsition, remove the low frequency (approximation) and highest details (noises)
+        Take a picture, does a wavelet decompsition, remove the low frequency
+        (approximation) and highest details (noises)
         and return the recomposed picture
         '''
         img_shape = img_blr.shape
@@ -227,7 +242,7 @@ class ImageProcessing(object):
         coeffs = pywt.wavedec2(img_blr_resize, "db8", level=level)
         #remove the low freq (approximation)
         coeffs[0].fill(0)
-        #remove the highest details (noise??)
+        #remove the highest details (noises)
         coeffs[-1][0].fill(0)
         coeffs[-1][1].fill(0)
         coeffs[-1][2].fill(0)
@@ -243,13 +258,12 @@ class ImageProcessing(object):
     @staticmethod
     def detect_star_points(img_gray, mask=None, resize_length=2200):
         logging.debug("detect_star_point()")
-        logging.debug("resize_length = %s", resize_length)
+        logging.debug(f"resize_length = {resize_length}", )
 
         sigma = 3
         img_shape = img_gray.shape
         img_blr = cv2.GaussianBlur(img_gray, (9, 9), sigma)
-#12/25/2020 test - add clarity by subtract img_blr from gray image
-#        img_blr=img_gray - img_blr
+
         img_blr_mean=np.mean(img_blr)
         img_blr_range=np.max(img_blr) - np.min(img_blr)
         img_blr = (img_blr - img_blr_mean) / img_blr_range
@@ -336,7 +350,7 @@ class ImageProcessing(object):
         valid_stars = np.logical_and(valid_stars, areas > np.percentile(areas, 20), intensities > np.percentile(intensities, 20))
 
         star_pts = centroids[valid_stars]  # [x, y]
-        print("Final star points = {0}".format(len(star_pts)))
+        logging.debug("Final star points = {0}".format(len(star_pts)))
 
         areas = areas[valid_stars]
         intensities = intensities[valid_stars]
@@ -384,7 +398,7 @@ class ImageProcessing(object):
             input: sph: Spherical coordinates, theta([:0]) and phi ([:1])
             vol: "Volume", i.e. the product of area and intensity/average luminosity
             k: number of "neighbors"
-            output: Array of "features" of each star point derived from relationship between K neighbors:
+            output: Array of "feature descriptors" of each star point derived from relationship between K neighbors:
             theta: angle from the star point
             rho: distance from the star point
             vol: volume
@@ -402,8 +416,8 @@ class ImageProcessing(object):
         #of -dist_mat sorts from self to opposite
         vec_dist_ind = np.argsort(-dist_mat)
         #Make sure cosine is in range [-1,1]
-        dist_mat = np.where(dist_mat < -1, -1, np.where(dist_mat > 1, 1, dist_mat))
-        #dist_mat = np.clip(dist_mat, -1, 1)
+        #dist_mat = np.where(dist_mat < -1, -1, np.where(dist_mat > 1, 1, dist_mat))
+        dist_mat = np.clip(dist_mat, -1, 1)
 
         # Calculate the angle to the closest 2*k (30) neighbors
         dist_mat = np.arccos(dist_mat[np.array(range(pts_num))[:, np.newaxis], vec_dist_ind[:, :2 * k]])
@@ -414,13 +428,14 @@ class ImageProcessing(object):
         vol_ind = np.argsort(-vol * dist_mat)
 
 
-        def make_cross_matrix(v):
-        #Make a matrix for further angle calculation
+        #def make_cross_matrix(v):
+        #Make a cross matrix for calculating cross product
+        #Replaced by using np.cross
         # Input v (x,y,z)
         # Return [0,-z,y]
         #       [z,0,-x]
         #       [-y,x,0]
-            return np.array([[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]])
+        #    return np.array([[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]])
 
         theta_feature = np.zeros((pts_num, k))
         rho_feature = np.zeros((pts_num, k))
@@ -429,24 +444,33 @@ class ImageProcessing(object):
         for i in range(pts_num):
             v0 = vec[i] #current point vector, x,y,z
             vs = vec[vec_dist_ind[i, vol_ind[i, :k]]] #coordinates[x,y,z] of k neighbours sorted by vol*dist
-#            angles = np.inner(vs, make_cross_matrix(v0)) #[-y1*z0+z1*y0,x1*z0-z1*x0,-x1*y0+y1*x0]
-#12/30/2020 suspect this is cross product
-#compare it with np.cross
+            #angles = np.inner(vs, make_cross_matrix(v0)) #[-y1*z0+z1*y0,x1*z0-z1*x0,-x1*y0+y1*x0]
+            #12/30/2020 Replace above by using np.cross to calculate cross product
             angles=np.cross(v0,vs)
-#            print("yes" if (angles2==angles).all() else "no")
-            #la.norm by default is Frobenius as in sqrt(sum(angles **2),axis=1))
+            #print("yes" if (angles2==angles).all() else "no")
+            #normalize angle by the magnitude of each angle vector
+            #so each vector is unit (magnitude 1)
             angles = angles / la.norm(angles, axis=1)[:, np.newaxis] 
-#            cr = np.inner(angles, make_cross_matrix(angles[0]))
-#12/30/2020 suspect this is cross product
-#compare it with np.cross
+            #cr = np.inner(angles, make_cross_matrix(angles[0]))
+            #12/30/2020 Calculate cross products against first vector, 
             cr=np.cross(angles[0],angles)
-#            print("YES" if (cr2==cr).all() else "NO")
+            #print("YES" if (cr2==cr).all() else "NO")
+            
+            #s: the magnitude of cr, which is determant of angles[0] and other angles
+            #which is ||angle0||*||angle x||*sin(theta)
             s = la.norm(cr, axis=1) * np.sign(np.inner(cr, v0))
+
+            #c: the dot product between angles[0] and other angles
+            #which is ||angle0|| * ||angle x|| * cos(theta)
             c = np.inner(angles, angles[0])
+
+            #Therefore tan(theta) is s/c
             theta_feature[i] = np.arctan2(s, c)
             rho_feature[i] = dist_mat[i, vol_ind[i, :k]]
             vol_feature[i] = vol[i, vol_ind[i, :k]]
 
+        # Create the feature descriptors, a histogram of 120x (360/30), values derived from
+        # rhoes,  angles and volumes from the K neighbors. So should be rotation invariant.
         fx = np.arange(-np.pi, np.pi, 3 * np.pi / 180)
         features = np.zeros((pts_num, len(fx)))
         for i in range(k):
@@ -507,6 +531,16 @@ class ImageProcessing(object):
 
     @staticmethod
     def fine_tune_transform(feature1, feature2, init_pair_idx):
+        '''
+            fine_tune_transform()
+                Almost RACSAC on steroids - try to find a homography until at least 60% of lesser points match
+            input:
+                two (2) features, each with point coordinates, volumnes, and feature descriptors
+                initial pairs
+            output:
+                tf: Homography for future transformation
+                pair_idx: matching pair between two images
+        '''
         ind = []
         k = 1
         while len(ind) < 0.6 * min(len(feature1["pts"]), len(feature2["pts"])) and k <= 10:
@@ -550,8 +584,11 @@ class ImageProcessing(object):
     @staticmethod
     def read_tif_image(full_path):
         img = tiff.imread(full_path)
-        exif_info = Tyf.open(full_path)
-        return img, exif_info
+        #No longer using Tyf to grab exif data. It doesn't handle raw
+        #Nor does it get adapted lenses
+        #exif_info = Tyf.open(full_path)
+        #return img, exif_info
+        return img,None
 
     @staticmethod
     def read_raw_image(full_path):

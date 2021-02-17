@@ -35,9 +35,28 @@ Any suggestion about read and write metadata (exif information) of tiff file is 
 - Added Python3 support - and all subsequent changes are only for Python3
 - Added raw support by rawpy
 - Separated command line from DataModel.py
+- Removed Tyf import
 - The main command line is now alignStar.py
-* python3>python alignStar.py
-* usage: alignStar.py [-h] [-o OUTPUT] [-d] [-k] [-f FOCAL] images [images ...]
+* python3>$ python3 alignStar.py -h
+usage: alignStar.py [-h] [-o OUTPUT] [-d] [-k] -f FOCAL [-c CROPFACTOR]
+                    images [images ...]
+
+Align stars in the sky
+
+positional arguments:
+  images                A list of image files
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -o OUTPUT, --output OUTPUT
+                        Output file
+  -d, --debug           Output file
+  -k, --keepInterim     Keep all interim images
+  -f FOCAL, --focalLength FOCAL
+                        Focal length
+  -c CROPFACTOR, --cropFactor CROPFACTOR
+                        Crop factor (default: 1.0)
+- Note that -f argument is now required to supply the focal length without crop factor, as Tyf cannot handle raw files anyway.
 - Forego the writing of exif info to final tiff file as it doesn't seem to work well
 
 # 星点对齐叠加

@@ -7,4 +7,5 @@
 **.idea
 *.prf
 **.pyc
-
+*.ARW
+*.NEF
