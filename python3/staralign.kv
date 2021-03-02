@@ -1,0 +1,116 @@
+<SLButton@Button>:
+    size_hint: 1,None
+    height:self.texture_size[1]
+    background_color: 0,0,0,0  # the last zero is the critical one, make invisible
+    canvas.before:
+        Color:
+            rgba: (.4,.4,.4,1) if self.state=='normal' else (0,.7,.7,1)  # visual feedback of press
+        RoundedRectangle:
+            pos: self.pos
+            size: self.size
+            radius: [25,]
+    font_size:'15sp'
+
+<SLLabel@Label>:
+    canvas.before:
+        Color:
+            rgba: (.4,.4,.4,1)
+        Rectangle:
+            pos: self.pos
+            size: self.size
+            
+<starAlignBL>:
+    orientation: 'vertical'
+    spacing: 3
+    padding: root.width*0.01
+
+    BoxLayout:
+        id: upper_pane
+        orientation: 'horizontal'
+        spacing: 3
+        padding: 3
+        canvas:
+            Rectangle:
+                pos: self.pos
+                size: self.size
+        
+        BoxLayout:
+            id: operations_pane
+            orientation: 'vertical'
+            spacing: 3
+            padding: 3,3,3,3
+            size_hint: None,1
+            width: '200sp'
+            
+            SLLabel:
+                id: filelist_label
+                size_hint: None,None
+                width: "194sp"
+                height: "25sp"
+                text: "Image files"
+                color: [0,0,0,1]
+                font_color: .2,.3,.4,1
+                font_size: '18sp'
+                text_size: self.size # Set this so text will wrap
+            
+            Button:
+                id: files
+                text: "Image files"
+            SLButton:
+                text: 'Add images'
+                #on_release: 
+            SLButton:
+                text: 'Set focal length'
+                #on_release: 
+            SLButton:
+                text: 'Reset'
+                #on_release: urlInput.text=''
+            SLButton:
+                text: 'Merge'
+                #on_release: urlInput.text=''
+            SLButton:
+                text: 'Save'
+                on_release: root.test_draw()
+        BoxLayout:
+            id: render_pane
+            orientation: 'vertical'
+            spacing: 3
+            padding: 3
+            
+            SLLabel:
+                id: render_label
+                color: [0,0,0,1]
+                font_color: .2,.3,.4,1
+                size_hint:1,None
+                height: "25sp"
+                font_size: '18sp'
+                text_size: self.size # Set this so text will wrap
+                text: "Current Image"
+                
+            ScrollView:
+                Button:
+                    id: render_area
+                    text: "Preview window"
+                    disabled: True
+                    size_hint:None,None
+                    size: self.parent.size
+                    on_size: root.show_on_size()
+                
+    BoxLayout:
+        orientation: 'vertical'
+        size_hint: 1,None
+        height: "50sp"
+
+        Label:
+            id: progress_label
+            text: "Progress"
+            font_color: .2,.3,.4,1
+            font_size: '20sp'
+            text_size: self.size # Set this so text will wrap
+            
+        ProgressBar:
+            id: progBar
+            max:100
+            value:0
+            size_hint_y:0
+            height: 20
