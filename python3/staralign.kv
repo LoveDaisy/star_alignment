@@ -18,7 +18,19 @@
         Rectangle:
             pos: self.pos
             size: self.size
-            
+
+<SelectableLabel>:
+    # Draw a background to indicate selection
+    text_size: self.size
+    halign: 'left'
+    valign: 'middle'
+    canvas.before:
+        Color:
+            rgba: (.7, 0.7, .7, 1) if self.selected else (.4, .4, .4, 1)
+        Rectangle:
+            pos: self.pos
+            size: self.size
+     
 <starAlignBL>:
     orientation: 'vertical'
     spacing: 3
@@ -52,16 +64,32 @@
                 font_color: .2,.3,.4,1
                 font_size: '18sp'
                 text_size: self.size # Set this so text will wrap
+
+            ScrollView:
+                do_scroll_x: True
+                do_scroll_y: False
+                RecycleView:
+                    id: pics_list
+                    viewclass: 'SelectableLabel'
+
+                    data: []
+                    SelectableRecycleBoxLayout:
+                        default_size: None, dp(26)
+                        default_size_hint: 1, None
+                        size_hint_y: None
+                        size_hint_x: None
+                        width: "300sp"
+                        height: self.minimum_height
+                        orientation: 'vertical'
+                        multiselect: False
+                        touch_multiselect: False
             
-            Button:
-                id: files
-                text: "Image files"
             SLButton:
                 text: 'Add images'
-                #on_release: 
+                on_release: root.show_load() 
             SLButton:
                 text: 'Set focal length'
-                #on_release: 
+                on_release: root.show_set_focal()
             SLButton:
                 text: 'Reset'
                 #on_release: urlInput.text=''
@@ -114,3 +142,87 @@
             value:0
             size_hint_y:0
             height: 20
+
+<LoadDialog>:
+    BoxLayout:
+        size: root.size
+        pos: root.pos
+        orientation: "vertical"
+        FileChooserIconView:
+            id: filechooser
+            filters: ["*.tif","*.NEF","*.ARW","*.DNG"]
+            path: "."
+            multiselect: True
+
+        BoxLayout:
+            size_hint_y: None
+            height: 30
+            Button:
+                text: "Cancel"
+                on_release: root.cancel()
+
+            Button:
+                text: "Load"
+                on_release: root.load(filechooser.path, filechooser.selection)
+
+<SaveDialog>:
+    text_input: text_input
+    BoxLayout:
+        size: root.size
+        pos: root.pos
+        orientation: "vertical"
+        FileChooserListView:
+            id: filechooser
+            on_selection: text_input.text = self.selection and self.selection[0] or ''
+
+        TextInput:
+            id: text_input
+            size_hint_y: None
+            height: 30
+            multiline: False
+
+        BoxLayout:
+            size_hint_y: None
+            height: 30
+            Button:
+                text: "Cancel"
+                on_release: root.cancel()
+
+            Button:
+                text: "Save"
+                on_release: root.save(filechooser.path, text_input.text)
+
+
+<SetFocusDialog>:
+    BoxLayout:
+        size: root.size
+        pos: root.pos
+        orientation: "vertical"
+
+        GridLayout:
+            cols: 2
+            padding: 5
+            spacing: 5
+            SLLabel:
+                text:"Set focal length:"
+                size_hint_x: None
+                width: "150sp"
+            TextInput
+                id: focal
+            SLLabel:
+                text:"Set crop factor:"
+                size_hint_x: None
+                width: "150sp"
+            TextInput
+                id: crop
+
+        BoxLayout:
+            size_hint_y: None
+            height: 30
+            Button:
+                text: "Cancel"
+                on_release: root.cancel()
+
+            Button:
+                text: "Save"
+                on_release: root.save(focal.text, crop.text)
