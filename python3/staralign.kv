@@ -8,7 +8,7 @@
         RoundedRectangle:
             pos: self.pos
             size: self.size
-            radius: [25,]
+            radius: [10,]
     font_size:'15sp'
 
 <SLLabel@Label>:
@@ -60,6 +60,7 @@
                 width: "194sp"
                 height: "25sp"
                 text: "Image files"
+                halign: 'center'
                 color: [0,0,0,1]
                 font_color: .2,.3,.4,1
                 font_size: '18sp'
@@ -94,10 +95,14 @@
                 text: 'Reset'
                 #on_release: urlInput.text=''
             SLButton:
+                id: merge_button
                 text: 'Merge'
-                #on_release: urlInput.text=''
+                disabled: True
+                on_release: root.show_merge()
             SLButton:
+                id: save_button
                 text: 'Save'
+                disabled: True
                 on_release: root.test_draw()
         BoxLayout:
             id: render_pane
@@ -112,6 +117,7 @@
                 size_hint:1,None
                 height: "25sp"
                 font_size: '18sp'
+                halign: 'center'
                 text_size: self.size # Set this so text will wrap
                 text: "Current Image"
                 
@@ -123,25 +129,34 @@
                     size_hint:None,None
                     size: self.parent.size
                     on_size: root.show_on_size()
+            SLLabel:
+                id: focus_label
+                color: [0,0,0,1]
+                font_color: .2,.3,.4,1
+                size_hint:1,None
+                height: "25sp"
+                font_size: '18sp'
+                text_size: self.size # Set this so text will wrap
+                text: "Focus Length:  Crop Factor: Please set focal length"
                 
-    BoxLayout:
-        orientation: 'vertical'
-        size_hint: 1,None
-        height: "50sp"
-
-        Label:
-            id: progress_label
-            text: "Progress"
-            font_color: .2,.3,.4,1
-            font_size: '20sp'
-            text_size: self.size # Set this so text will wrap
-            
-        ProgressBar:
-            id: progBar
-            max:100
-            value:0
-            size_hint_y:0
-            height: 20
+##    BoxLayout:
+##        orientation: 'vertical'
+##        size_hint: 1,None
+##        height: "50sp"
+##
+##        Label:
+##            id: progress_label
+##            text: "Progress"
+##            font_color: .2,.3,.4,1
+##            font_size: '20sp'
+##            text_size: self.size # Set this so text will wrap
+##            
+##        ProgressBar:
+##            id: progBar
+##            max:100
+##            value:0
+##            size_hint_y:0
+##            height: 20
 
 <LoadDialog>:
     BoxLayout:
@@ -156,14 +171,43 @@
 
         BoxLayout:
             size_hint_y: None
+            spacing: 3
+            padding: 3
             height: 30
-            Button:
+            SLButton:
                 text: "Cancel"
                 on_release: root.cancel()
 
-            Button:
+            SLButton:
                 text: "Load"
                 on_release: root.load(filechooser.path, filechooser.selection)
+
+<MergeDialog>:
+    BoxLayout:
+        spacing: 3
+        padding: 3
+        size: root.size
+        pos: root.pos
+        orientation: "vertical"
+        SLLabel:
+            id: merge_label
+            color: [0,0,0,1]
+            font_color: .2,.3,.4,1
+            font_size: '18sp'
+            valign: 'top'
+            text_size: self.size # Set this so text will wrap
+            text: "Aligning and merging"
+
+        SLButton:
+            text: "OK"
+            size_hint:None,None
+            font_size: '18sp'
+            height: '20sp'
+            width: '38sp'
+            pos_hint: {'x':0.5}
+            disabled: False
+            on_release: root.cancel()
+
 
 <SaveDialog>:
     text_input: text_input
@@ -183,12 +227,14 @@
 
         BoxLayout:
             size_hint_y: None
+            spacing: 3
+            padding: 3
             height: 30
-            Button:
+            SLButton:
                 text: "Cancel"
                 on_release: root.cancel()
 
-            Button:
+            SLButton:
                 text: "Save"
                 on_release: root.save(filechooser.path, text_input.text)
 
@@ -209,20 +255,30 @@
                 width: "150sp"
             TextInput
                 id: focal
+                write_tab: False
+                input_filter: "float"
+                multiline: False
+                hint_text: "Focal length"
             SLLabel:
                 text:"Set crop factor:"
                 size_hint_x: None
                 width: "150sp"
             TextInput
                 id: crop
+                write_tab: False
+                input_filter: "float"
+                multiline: False
+                hint_text: "Crop factor"
 
         BoxLayout:
             size_hint_y: None
             height: 30
-            Button:
+            spacing: 3
+            padding: 3
+            SLButton:
                 text: "Cancel"
                 on_release: root.cancel()
 
-            Button:
-                text: "Save"
+            SLButton:
+                text: "Set"
                 on_release: root.save(focal.text, crop.text)
