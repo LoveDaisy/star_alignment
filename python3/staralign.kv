@@ -67,12 +67,17 @@
                 text_size: self.size # Set this so text will wrap
 
             ScrollView:
+                canvas.before:
+                    Color:
+                        rgba: (.4,.4,.4,1)
+                    Rectangle:
+                        pos: self.pos
+                        size: self.size
                 do_scroll_x: True
                 do_scroll_y: False
                 RecycleView:
                     id: pics_list
                     viewclass: 'SelectableLabel'
-
                     data: []
                     SelectableRecycleBoxLayout:
                         default_size: None, dp(26)
@@ -85,15 +90,36 @@
                         multiselect: False
                         touch_multiselect: False
             
+            BoxLayout:
+                size_hint:1,None
+                padding: 4
+                spacing: 4
+                height: "25sp"
+                canvas.before:
+                    Color:
+                        rgba: (.4,.4,.4,1)
+                    RoundedRectangle:
+                        pos: self.pos
+                        size: self.size
+                        radius: [10,]
+                SLLabel:
+                    text: "Keep interim"
+                CheckBox:
+                    id: keep_interim
+        
             SLButton:
                 text: 'Add images'
                 on_release: root.show_load() 
             SLButton:
+                id: focus_button
+                disabled: True
                 text: 'Set focal length'
                 on_release: root.show_set_focal()
             SLButton:
+                id: reset_button
                 text: 'Reset'
-                #on_release: urlInput.text=''
+                on_release: root.reset_ui()
+                disabled: True
             SLButton:
                 id: merge_button
                 text: 'Merge'
@@ -103,7 +129,7 @@
                 id: save_button
                 text: 'Save'
                 disabled: True
-                on_release: root.test_draw()
+                on_release: root.show_save()
         BoxLayout:
             id: render_pane
             orientation: 'vertical'
@@ -183,6 +209,8 @@
                 on_release: root.load(filechooser.path, filechooser.selection)
 
 <MergeDialog>:
+    merge_label: merge_label
+    ok_button: ok_button
     BoxLayout:
         spacing: 3
         padding: 3
@@ -196,16 +224,17 @@
             font_size: '18sp'
             valign: 'top'
             text_size: self.size # Set this so text will wrap
-            text: "Aligning and merging"
+            text: "Merging & Aligning"
 
         SLButton:
+            id: ok_button
             text: "OK"
             size_hint:None,None
             font_size: '18sp'
             height: '20sp'
             width: '38sp'
             pos_hint: {'x':0.5}
-            disabled: False
+            disabled: True
             on_release: root.cancel()
 
 
@@ -217,6 +246,7 @@
         orientation: "vertical"
         FileChooserListView:
             id: filechooser
+            path: "."
             on_selection: text_input.text = self.selection and self.selection[0] or ''
 
         TextInput:
