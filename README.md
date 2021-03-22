@@ -59,6 +59,15 @@ optional arguments:
 - Note that -f argument is now required to supply the focal length without crop factor, as Tyf cannot handle raw files anyway.
 - Forego the writing of exif info to final tiff file as it doesn't seem to work well
 
+2021-03-21
+Added GUI, requires Kivy
+Main program: starAlignGui.py
+
+Note:
+- Preprocessing: Changing color, exposure and clarity, removing Chromatic Aberation is OK. But don't perform lens corrections as it may affect image geography.
+
+
+
 # 星点对齐叠加
 对多张星空图片进行星点对齐并叠加，适用于深空、星野图片，适用于长焦、广角拍摄的图片，改正了常见叠加方法无法对齐广角星空的缺点。
 
