@@ -108,6 +108,7 @@
                     id: keep_interim
         
             SLButton:
+                id: load_button
                 text: 'Add images'
                 on_release: root.show_load() 
             SLButton:
@@ -147,14 +148,30 @@
                 text_size: self.size # Set this so text will wrap
                 text: "Current Image"
                 
-            ScrollView:
-                Button:
-                    id: render_area
-                    text: "Preview window"
-                    disabled: True
-                    size_hint:None,None
-                    size: self.parent.size
-                    on_size: root.show_on_size()
+            TabbedPanel:
+                do_default_tab: False
+                tab_pos : 'bottom_left'
+                tab_height: '20sp'
+                TabbedPanelItem:
+                    text: "Preview"
+                    ScrollView:
+                        Button:
+                            id: render_area
+                            text: "Preview window"
+                            disabled: True
+                            size_hint:None,None
+                            size: self.parent.size
+                            on_size: root.show_on_size()
+                TabbedPanelItem:
+                    text: "Detected stars"
+                    ScrollView:
+                        Button:
+                            id: detected_stars
+                            text: "Detected stars, available after merge"
+                            disabled: True
+                            size_hint:None,None
+                            size: self.parent.size
+                            on_size: root.show_on_size()            
             SLLabel:
                 id: focus_label
                 color: [0,0,0,1]

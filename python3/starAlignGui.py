@@ -22,6 +22,7 @@ import tifffile as tiff
 import DataModel
 from kivy.logger import Logger,LOG_LEVELS
 import threading
+import cv2
 import gc
 
 class LoadDialog(FloatLayout):
@@ -82,6 +83,7 @@ class starAlignBL(BoxLayout):
         self.data_model.logger=Logger
         self.img=None
         self.texture=None
+        self.texture_stars=None
         self.focal_length=0
         self.crop_factor=0
         self.img_list=None
@@ -94,8 +96,13 @@ class starAlignBL(BoxLayout):
 
     def show_img(self):
         render_texture=self.ids['render_area']
+        render_stars_texture=self.ids['detected_stars']
         prev_canvas=render_texture.canvas
+        prev_stars_canvas=render_stars_texture.canvas
+        
         prev_canvas.clear()
+        prev_stars_canvas.clear()
+        
         img_ratio=self.img.shape[1]/self.img.shape[0]
         render_ratio=render_texture.size[0]/render_texture.size[1]
         if img_ratio > render_ratio:
@@ -106,14 +113,21 @@ class starAlignBL(BoxLayout):
         render_texture.size=render_size
         with render_texture.canvas:
             Rectangle(texture=self.texture,pos=render_texture.pos, size=render_size)
-
+        with render_stars_texture.canvas:
+            Rectangle(texture=self.texture_stars,pos=render_stars_texture.pos, size=render_size)
+            
     def show_blank(self):
         render_texture=self.ids['render_area']
+        render_stars_texture=self.ids['detected_stars']
         prev_canvas=render_texture.canvas
+        prev_stars_canvas=render_stars_texture.canvas
         prev_canvas.clear()
+        prev_stars_canvas.clear()
         prev_canvas.add(Color(0.1, 0.1, 0.1, 1))
+        prev_stars_canvas.add(Color(0.1, 0.1, 0.1, 1))
         rect = Rectangle(size=render_texture.size, pos=render_texture.pos)
         prev_canvas.add(rect)
+        prev_stars_canvas.add(rect)
 
     def preview(self,instance):
         try: #not sure why selection is applied after reset. so workaround
@@ -124,14 +138,29 @@ class starAlignBL(BoxLayout):
                 index=self.img_list.index(instance.text)
                 Logger.debug(f"Previewing {instance.text}, index={index}")
                 self.img=cv2.flip(self.data_model.images[index].original_image,0)
+                ##Create the stars based on points with opencv, therefore set dtype=uint8
+                self.img_stars=np.zeros(self.img.shape,dtype=np.uint8)
+                # Flip upside down
+                for x,y in self.data_model.images[index].features["pts"]:
+                    cv2.circle(self.img_stars, (int(x),self.img.shape[0]-int(y)), 5, (255,255,255),-1)
+
+            # texture shape is (width, height), while cv, tiff is (height,width)
             texture_size=(self.img.shape[1],self.img.shape[0])
             self.texture = Texture.create(size=texture_size,
                                      colorfmt='rgb',
                                      bufferfmt='ushort')
+            
+            self.texture_stars = Texture.create(size=texture_size,
+                         colorfmt='bgr',
+                         bufferfmt='ubyte')
             self.texture.blit_buffer(self.img.tobytes(),bufferfmt='ushort')
+            if instance.text == "result":
+                self.texture_stars = self.texture
+            else:
+                self.texture_stars.blit_buffer(self.img_stars.tobytes(),bufferfmt='ubyte')
             self.show_img()
-        except:
-            pass
+        except Exception as e:
+            Logger.debug(f"Preview erro: {e}")
 
     def show_on_size(self):
         Logger.debug("Show on window resize")
@@ -142,15 +171,10 @@ class starAlignBL(BoxLayout):
 
     def reset_ui(self):
         self.ids.pics_list.data=[]
-##        root=App.get_running_app().root
-##        pic_list=root.ids["pics_list"]
-##        for pic_label in pic_list.children:
-##            if pic_label.selected:
-##                pic_label.selected = False
-##            pic_list.remove_widget(pic_label)
         self.reset_data()
         self.show_blank()
         root=App.get_running_app().root
+        root.ids['load_button'].disabled=False
         root.ids['merge_button'].disabled=True
         root.ids['focus_button'].disabled=True
         root.ids['reset_button'].disabled=True
@@ -170,6 +194,8 @@ class starAlignBL(BoxLayout):
             Logger.debug(f"Load image: {p}, focal_length={self.focal_length} crop_factor={self.crop_factor}")
             self.data_model.add_image(p,focal_length=self.focal_length,
                                       crop_factor=self.crop_factor)
+
+        root.ids['load_button'].disabled=True
         root.ids['merge_button'].disabled=False
         root.ids['reset_button'].disabled=False
 
@@ -205,6 +231,17 @@ class starAlignBL(BoxLayout):
             self.crop_factor = float(crop_factor)
         except:
             pass
+
+        for img in self.data_model.images:
+            img_shape = img.fullsize_gray_image.shape
+            img_size = np.array([img_shape[1], img_shape[0]])
+            pts, vol = DataModel.ImageProcessing.detect_star_points(img.fullsize_gray_image)
+            sph = DataModel.ImageProcessing.convert_to_spherical_coord(pts, img_size, self.focal_length, self.crop_factor)
+            feature = DataModel.ImageProcessing.extract_point_features(sph, vol)
+            img.features["pts"] = pts
+            img.features["sph"] = sph
+            img.features["vol"] = vol
+            img.features["feature"] = feature
         root = App.get_running_app().root
         root.ids["focus_label"].text=f"Focus Length: {self.focal_length}mm  Crop Factor: {self.crop_factor}"
         Logger.debug(f"Set Focus Length: {self.focal_length}mm")
@@ -223,19 +260,10 @@ class starAlignBL(BoxLayout):
             img_size = np.array([img_shape[1], img_shape[0]])
             self.data_model.reset_result()
 
-            pts, vol = DataModel.ImageProcessing.detect_star_points(ref_img.fullsize_gray_image)
-            sph = DataModel.ImageProcessing.convert_to_spherical_coord(pts, np.array((img_shape[1], img_shape[0])), self.focal_length, self.crop_factor)
-            feature = DataModel.ImageProcessing.extract_point_features(sph, vol)
-            ref_img.features["pts"] = pts
-            ref_img.features["sph"] = sph
-            ref_img.features["vol"] = vol
-            ref_img.features["feature"] = feature
-
             self.data_model.accumulate_final_sky( np.copy(ref_img.original_image).astype("float32") / np.iinfo(
                 ref_img.original_image.dtype).max)
             self._popup.content.merge_label.text+=f"\nDone"
-            # Initialize aligned image list
-            #sky_imgs=[np.copy(data_model.final_sky_img)]
+
             serial=0
             if keepInterim:
                 result_img = (self.data_model.final_sky_img * np.iinfo("uint16").max).astype("uint16")
@@ -244,13 +272,6 @@ class starAlignBL(BoxLayout):
             for i in range(1,len(self.data_model.images)):
                 self._popup.content.merge_label.text+=f"\nProcessing {self.img_list[i]}..."
                 img=self.data_model.images[i]
-                pts, vol = DataModel.ImageProcessing.detect_star_points(img.fullsize_gray_image)
-                sph = DataModel.ImageProcessing.convert_to_spherical_coord(pts, img_size, self.focal_length, self.crop_factor)
-                feature = DataModel.ImageProcessing.extract_point_features(sph, vol)
-                img.features["pts"] = pts
-                img.features["sph"] = sph
-                img.features["vol"] = vol
-                img.features["feature"] = feature
 
                 try:
                     init_pair_idx = DataModel.ImageProcessing.find_initial_match(img.features, ref_img.features)
@@ -268,7 +289,7 @@ class starAlignBL(BoxLayout):
                     self._popup.content.merge_label.text+=f"\nCould not align, discarded!"
             self.data_model.update_final_sky()
             self.result_img = (self.data_model.final_sky_img * np.iinfo("uint16").max).astype("uint16")
-##            DataModel.ImageProcessing.save_tif_image(self.output_name, result_img, self.data_model.images[0].exif_info)
+
             self.ids.pics_list.data.append({"text":"result","path":""})
             self.img_list.append("result")
         else:
@@ -277,6 +298,7 @@ class starAlignBL(BoxLayout):
         self._popup.content.ok_button.disabled=False           
         Logger.debug(f"Enable OK button {self._popup.content.ok_button.disabled}")    
         App.get_running_app().root.ids["save_button"].disabled=False
+        App.get_running_app().root.ids["merge_button"].disabled=True
         Logger.debug(f"Enable Save button")
         
     def show_merge(self):
@@ -301,8 +323,6 @@ class starAlignBL(BoxLayout):
         DataModel.ImageProcessing.save_tif_image(save_path, self.result_img, self.data_model.images[0].exif_info)
         self.dismiss_popup()
         Logger.debug(f"Result saved to {save_path}")
-
-
 
 
 class starAlignApp(App):

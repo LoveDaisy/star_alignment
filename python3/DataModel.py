@@ -190,8 +190,8 @@ class DataModel(object):
         self.logger.debug("reset_result()")
         self.reset_final_sky()
         self.reset_final_ground()
-        for img in self.images:
-            img.features = {}
+##        for img in self.images:
+##            img.features = {}
 
     def has_image(self):
         result = len(self.images) > 0
