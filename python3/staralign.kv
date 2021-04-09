@@ -92,8 +92,8 @@
             
             BoxLayout:
                 size_hint:1,None
-                padding: 4
-                spacing: 4
+                padding: 2
+                spacing: 2
                 height: "25sp"
                 canvas.before:
                     Color:
@@ -103,9 +103,34 @@
                         size: self.size
                         radius: [10,]
                 SLLabel:
-                    text: "Keep interim"
+                    text: "Keep interim images"
+                    
                 CheckBox:
                     id: keep_interim
+                    size_hint_x: .18
+            BoxLayout:
+                size_hint:1,None
+                padding: 4
+                spacing: 4
+                height: "30sp"
+                orientation: 'vertical'
+                canvas.before:
+                    Color:
+                        rgba: (.4,.4,.4,1)
+                    RoundedRectangle:
+                        pos: self.pos
+                        size: self.size
+                        radius: [10,]
+                Slider:
+                    id: detect_slider
+                    min:2000
+                    max: 3500
+                    value: 2200
+                    cursor_size: "10sp","10sp"
+                    step: 25
+                    orientation: 'horizontal'
+                SLLabel:
+                    text: "Detect image size "+str(detect_slider.value)
         
             SLButton:
                 id: load_button

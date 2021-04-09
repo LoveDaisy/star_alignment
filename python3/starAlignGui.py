@@ -24,6 +24,13 @@ from kivy.logger import Logger,LOG_LEVELS
 import threading
 import cv2
 import gc
+import signal
+
+def keyboardInterruptHandler(signal, frame):
+    print("Thanks for using star align.".format(signal))
+    exit(0)
+
+signal.signal(signal.SIGINT, keyboardInterruptHandler)
 
 class LoadDialog(FloatLayout):
     load = ObjectProperty(None)
@@ -179,6 +186,8 @@ class starAlignBL(BoxLayout):
         root.ids['focus_button'].disabled=True
         root.ids['reset_button'].disabled=True
         root.ids['save_button'].disabled=True
+        self.ids["keep_interim"].active=False
+        self.ids["detect_slider"].value=2200
 
     def dismiss_popup(self):
         self._popup.dismiss()
@@ -231,11 +240,12 @@ class starAlignBL(BoxLayout):
             self.crop_factor = float(crop_factor)
         except:
             pass
-
+        root = App.get_running_app().root
         for img in self.data_model.images:
             img_shape = img.fullsize_gray_image.shape
             img_size = np.array([img_shape[1], img_shape[0]])
-            pts, vol = DataModel.ImageProcessing.detect_star_points(img.fullsize_gray_image)
+            resize_len=int(root.ids["detect_slider"].value)
+            pts, vol = DataModel.ImageProcessing.detect_star_points(img.fullsize_gray_image,resize_length=resize_len)
             sph = DataModel.ImageProcessing.convert_to_spherical_coord(pts, img_size, self.focal_length, self.crop_factor)
             feature = DataModel.ImageProcessing.extract_point_features(sph, vol)
             img.features["pts"] = pts
